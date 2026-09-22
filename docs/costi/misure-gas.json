@@ -1,6 +1,11 @@
 {
-  "data": "2026-09-21T22:36:13.007Z",
+  "data": "2026-09-22T16:23:45.114Z",
   "rpc": "http://127.0.0.1:8545",
+  "controlli": {
+    "letturaCoerente": true,
+    "duplicato": true,
+    "negato": true
+  },
   "misure": [
     {
       "operazione": "Deploy del contratto (una tantum)",

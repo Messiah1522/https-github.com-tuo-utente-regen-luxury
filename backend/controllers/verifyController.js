@@ -21,7 +21,8 @@ const ancoraggioPubblico = (a) => (a ? { stato: a.stato, txHash: a.txHash ?? nul
 
 async function certificato(item) {
   const integrita = await verificaIntegrita(item);
-  const autentico = !["manomesso", "non_registrato"].includes(integrita.stato);
+  // Autentico solo se TUTTO coincide con la blockchain (gli stati di attesa non bastano)
+  const autentico = integrita.stato === "verificato";
   return {
     capo: {
       tagId: item.tagId,

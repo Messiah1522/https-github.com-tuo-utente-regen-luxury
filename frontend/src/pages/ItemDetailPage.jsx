@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { api } from "../services/api.js";
 import { useAuth } from "../hooks/useAuth.jsx";
@@ -133,8 +133,15 @@ export default function ItemDetailPage() {
   }, [carica]);
 
   // Le scritture sulla blockchain sono asincrone: si aggiorna finché ci sono conferme in attesa
+  // (al massimo 60 controlli di fila, circa 2 minuti: oltre, basta ricaricare la pagina)
+  const controlli = useRef(0);
   useEffect(() => {
-    if (!capo || !inAttesa(capo)) return undefined;
+    if (!capo || !inAttesa(capo)) {
+      controlli.current = 0;
+      return undefined;
+    }
+    if (controlli.current >= 60) return undefined;
+    controlli.current += 1;
     const timer = setTimeout(carica, 2000);
     return () => clearTimeout(timer);
   }, [capo, carica]);
@@ -142,6 +149,7 @@ export default function ItemDetailPage() {
   const esegui = async (nome, percorso, metodo, corpo) => {
     setAzione(nome);
     setErrore(null);
+    controlli.current = 0;
     try {
       const r = await api(percorso, { metodo, corpo });
       if (r?._id) setCapo(r);

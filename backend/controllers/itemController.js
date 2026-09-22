@@ -37,9 +37,9 @@ export async function creaItem(req, res, next) {
     const item = await Item.create({
       ...dati,
       creatoDa: req.utente.id,
-      registrazione: { stato: "in_attesa" },
+      registrazione: { stato: "in_attesa", aggiornatoIl: new Date() },
       passaggiProprieta: proprietarioIniziale
-        ? [{ proprietario: proprietarioIniziale, registratoDa: req.utente.id, ancoraggio: { stato: "in_attesa" } }]
+        ? [{ proprietario: proprietarioIniziale, registratoDa: req.utente.id, ancoraggio: { stato: "in_attesa", aggiornatoIl: new Date() } }]
         : [],
     });
 
@@ -110,8 +110,9 @@ export async function modificaItem(req, res, next) {
     const item = await Item.findById(req.dati.params.id);
     if (!item) return nonTrovato(res);
     if (item.stato === "archiviato") return archiviato(res);
-    item.set(req.dati.body);
-    item.registrazione = { ...(item.registrazione?.toObject?.() ?? {}), stato: "in_attesa" };
+    // null = campo svuotato dall'utente: viene rimosso
+    for (const [campo, valore] of Object.entries(req.dati.body)) item.set(campo, valore === null ? undefined : valore);
+    item.registrazione = { ...(item.registrazione?.toObject?.() ?? {}), stato: "in_attesa", errore: undefined, aggiornatoIl: new Date() };
     await item.save();
     ancoraDatiCapo(item._id);
     res.json(item);
@@ -127,7 +128,7 @@ export async function archiviaItem(req, res, next) {
     if (!item) return nonTrovato(res);
     if (item.stato === "archiviato") return res.status(409).json({ errore: "Il capo è già archiviato." });
     item.stato = "archiviato";
-    item.registrazione = { ...(item.registrazione?.toObject?.() ?? {}), stato: "in_attesa" };
+    item.registrazione = { ...(item.registrazione?.toObject?.() ?? {}), stato: "in_attesa", errore: undefined, aggiornatoIl: new Date() };
     await item.save();
     ancoraDatiCapo(item._id);
     res.json(item);
@@ -149,7 +150,7 @@ export async function aggiungiEvento(req, res, next) {
     item.storicoRigenerazione.push({
       ...req.dati.body,
       registratoDa: req.utente.id,
-      ancoraggio: { stato: "in_attesa" },
+      ancoraggio: { stato: "in_attesa", aggiornatoIl: new Date() },
     });
     await item.save();
     ancoraEvento(item._id, item.storicoRigenerazione.at(-1)._id);
@@ -174,7 +175,7 @@ export async function aggiungiPassaggioProprieta(req, res, next) {
     item.passaggiProprieta.push({
       proprietario: req.dati.body.proprietario,
       registratoDa: req.utente.id,
-      ancoraggio: { stato: "in_attesa" },
+      ancoraggio: { stato: "in_attesa", aggiornatoIl: new Date() },
     });
     await item.save();
     ancoraPassaggio(item._id, item.passaggiProprieta.at(-1)._id);
@@ -228,6 +229,7 @@ export async function associaNfc(req, res, next) {
   try {
     const item = await Item.findById(req.dati.params.id);
     if (!item) return nonTrovato(res);
+    if (item.stato === "archiviato") return archiviato(res);
 
     let uid;
     let contatore = null;

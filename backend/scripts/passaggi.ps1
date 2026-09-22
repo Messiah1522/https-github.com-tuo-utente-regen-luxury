@@ -1,11 +1,11 @@
 <#
-  passaggi.ps1 - Passaggi 1-8 in PowerShell (per il PC Windows).
+  passaggi.ps1 - Passaggi 1-8 in PowerShell (per il PC Windows), dalla cartella backend.
   Stessi controlli di "npm run passaggi" (versione Node, consigliata anche su Windows).
 
   Uso (server avviato con "npm run dev"):
     Set-ExecutionPolicy -Scope Process Bypass
-    .\test-powershell\passaggi.ps1 -Email admin@esempio.it
-    .\test-powershell\passaggi.ps1 -Email admin@esempio.it -Passaggio 7
+    .\scripts\passaggi.ps1 -Email admin@esempio.it
+    .\scripts\passaggi.ps1 -Email admin@esempio.it -Passaggio 7
 #>
 param(
     [Parameter(Mandatory = $true)][string]$Email,

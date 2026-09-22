@@ -10,9 +10,10 @@ Controlla sul sito di Render le condizioni attuali del piano gratuito prima dell
 ## Come funziona la versione online
 
 - **Database:** lo stesso cluster Atlas usato sul Mac → sul sito online si vedono gli stessi capi.
-- **Blockchain:** per ora registro **simulato** salvato nel database (`MOCK_LEDGER_STORE=mongo`), perché su
-  Render il disco si cancella a ogni riavvio. Anche il Mac usa lo stesso registro su database, così Mac e sito
-  online restano allineati (al primo avvio il vecchio file `backend/data/mock-ledger.json` viene importato).
+- **Blockchain:** per ora registro **simulato** salvato nel database (collezione `registro_simulato`,
+  `MOCK_LEDGER_STORE=mongo`, valore predefinito), perché su Render il disco si cancella a ogni riavvio. Anche il Mac
+  usa lo stesso registro, così Mac e sito online restano allineati (al primo avvio l'eventuale vecchio file
+  `backend/data/mock-ledger.json` viene importato).
   Limite da dichiarare: il registro simulato su database è meno indipendente del file; nella versione finale si
   passa a **Polygon Amoy** (vedi in fondo).
 - **Indirizzo pubblico:** il backend usa da solo quello assegnato da Render (`RENDER_EXTERNAL_URL`) per QR e link.

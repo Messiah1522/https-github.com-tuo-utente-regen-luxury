@@ -8,16 +8,21 @@ export async function autentica(req, res, next) {
   if (!intestazione.startsWith("Bearer ")) {
     return res.status(401).json({ errore: "Accesso richiesto: effettua il login." });
   }
+  let payload;
   try {
-    const payload = jwt.verify(intestazione.slice(7), jwtSecret());
+    payload = jwt.verify(intestazione.slice(7), jwtSecret());
+  } catch {
+    return res.status(401).json({ errore: "Sessione scaduta o non valida: effettua di nuovo il login." });
+  }
+  try {
     const utente = await User.findById(payload.sub).lean();
     if (!utente || !utente.attivo) {
       return res.status(401).json({ errore: "Account non valido o disattivato." });
     }
     req.utente = { id: String(utente._id), nome: utente.nome, email: utente.email, ruolo: utente.ruolo };
     next();
-  } catch {
-    return res.status(401).json({ errore: "Sessione scaduta o non valida: effettua di nuovo il login." });
+  } catch (err) {
+    next(err); // database non raggiungibile: errore del server, non login scaduto
   }
 }
 

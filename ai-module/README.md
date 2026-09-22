@@ -4,7 +4,7 @@ Da una foto del capo il modulo **suggerisce il materiale principale** (cotone, l
 pelle, poliestere, nylon, viscosa). Il suggerimento compare nel modulo "Nuovo capo" della web app e va
 sempre confermato con l'etichetta di composizione. L'**impatto ambientale** evitato non è calcolato dalla
 rete neurale: lo calcola il backend a partire dalla categoria del capo e da coefficienti LCA con fonte
-(`backend/data/coefficienti-lca.json`, vedi `lca/coefficienti.md`).
+(`backend/data/coefficienti-lca.json`, vedi `docs/lca/coefficienti.md`).
 
 ## Scelta del dataset (punto 21)
 
@@ -70,5 +70,5 @@ python -m pytest test/     # servizio con un modello ONNX fittizio + preparazion
 | `src/servizio.py` | API FastAPI `/classify` |
 | `notebooks/` | notebook per Colab (stesso codice di `src/`) |
 | `models/` | modello addestrato (non versionato) |
-| `lca/` | coefficienti ambientali con fonti |
+| `../docs/lca/` | coefficienti ambientali con fonti (usati dal backend) |
 | `data/` | dataset (non versionato) |

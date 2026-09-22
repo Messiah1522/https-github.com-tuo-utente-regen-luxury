@@ -11,7 +11,12 @@ export function notFound(req, res) {
 export function errorHandler(err, req, res, next) {
   // Indice UNIQUE violato (es. due richieste simultanee con lo stesso tagId)
   if (err.code === 11000) {
-    return res.status(409).json({ errore: "Questo tag risulta già associato a un altro capo." });
+    const campo = Object.keys(err.keyPattern ?? err.keyValue ?? {})[0];
+    const messaggi = {
+      tagId: "Questo tag risulta già associato a un altro capo.",
+      email: "Esiste già un account con questa email.",
+    };
+    return res.status(409).json({ errore: messaggi[campo] ?? (campo ? "Valore già presente." : messaggi.tagId) });
   }
   if (err.name === "CastError") {
     return res.status(400).json({ errore: "ID del capo non valido." });

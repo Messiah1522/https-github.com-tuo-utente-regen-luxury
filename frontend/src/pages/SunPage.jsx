@@ -10,7 +10,12 @@ import { aggiornaNellArmadio, registraVerifica, riassuntoCapo } from "../utils/a
 const richieste = new Map();
 function verificaLink(e, c) {
   const chiave = `${e}|${c}`;
-  if (!richieste.has(chiave)) richieste.set(chiave, api(`/verify/sun?e=${encodeURIComponent(e)}&c=${encodeURIComponent(c)}`));
+  if (!richieste.has(chiave)) {
+    const richiesta = api(`/verify/sun?e=${encodeURIComponent(e)}&c=${encodeURIComponent(c)}`);
+    // errore di rete: si può riprovare (il link non è stato consumato dal server)
+    richiesta.catch((err) => err.status === 0 && richieste.delete(chiave));
+    richieste.set(chiave, richiesta);
+  }
   return richieste.get(chiave);
 }
 

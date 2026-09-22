@@ -11,8 +11,6 @@ coverage/
 backend/data/mock-ledger.json
 contracts/cache/
 contracts/artifacts/
-contracts/RegenLuxuryPassport.json
-contracts/misure-gas.json
 ai-module/.venv/
 ai-module/data/raw/*
 ai-module/data/processed/*

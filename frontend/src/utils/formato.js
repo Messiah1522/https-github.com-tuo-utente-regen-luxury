@@ -63,7 +63,7 @@ export const iniziali = (testo = "") =>
 export const ESITO_BREVE = {
   verificato: { testo: "Autentico", classe: "ok" },
   in_attesa: { testo: "In registrazione", classe: "attesa" },
-  incompleto: { testo: "Storico parziale", classe: "attesa" },
+  incompleto: { testo: "Non conclusiva", classe: "attesa" },
   manomesso: { testo: "Dati alterati", classe: "ko" },
   non_registrato: { testo: "Non registrato", classe: "ko" },
   non_trovato: { testo: "Non trovato", classe: "ko" },

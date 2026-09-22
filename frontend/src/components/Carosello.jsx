@@ -7,7 +7,7 @@ function Foto({ foto }) {
       <img
         src={foto.src}
         alt=""
-        loading="lazy"
+        loading="eager"
         decoding="async"
         onError={(e) => e.currentTarget.parentElement.classList.add("foto-assente")}
       />

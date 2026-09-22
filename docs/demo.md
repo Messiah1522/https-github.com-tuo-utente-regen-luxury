@@ -5,7 +5,8 @@ il portatile con la web app aperta sull'area gestionale.
 
 ## Prima di iniziare (10 minuti prima)
 
-- [ ] Apri `https://<indirizzo>/api/health` per "svegliare" il server (piano gratuito).
+- [ ] Apri `https://regen-luxury.onrender.com/api/health` per "svegliare" il server (piano gratuito).
+- [ ] Sul Mac: `npm run popola-demo` (ricrea i capi di prova se mancano e rende di nuovo valido il link del chip di prova).
 - [ ] Prova una lettura del tag e del QR.
 - [ ] Accedi all'area gestionale con un account **artigiano** e uno **commerciante** (due schede).
 - [ ] Tieni pronte le schermate in `docs/validazione/schermate/` come piano B se la rete non funziona.
@@ -25,9 +26,18 @@ il portatile con la web app aperta sull'area gestionale.
 6. **Manomissione (1 min).** In Atlas (Data Explorer) modifica la descrizione di un intervento. Ricarica il
    certificato: "Attenzione: dati non coincidenti". Ripristina il testo originale: torna "Capo autentico".
    Messaggio chiave: *la blockchain non impedisce di modificare il database, ma rende la modifica evidente*.
-7. **Contraffazione (30 s).** Apri `/v/FALSO-001`: "Capo non trovato — possibile contraffazione".
+   Senza toccare Atlas: apri `/v/DEMO-MANOMESSO` (storico già alterato nel database da `npm run popola-demo`).
+7. **Contraffazione (30 s).** Apri `/v/DEMO-FALSO-99`: "Capo non trovato — possibile contraffazione".
 8. **Costo zero (30 s).** "Il ciclo di vita di un capo costa meno di un centesimo di commissioni, pagate dalla
    piattaforma; l'utente non ha wallet né criptovaluta" (dati in `docs/costi/gas-e-costi.md`).
+
+## Piano B senza chip fisico
+
+- Tocco sul tag → link del chip di prova (vettore NXP AN12196):
+  `https://regen-luxury.onrender.com/s?e=EF963FF7828658A599F3041510671E88&c=94EED9EE65337086` (vale una volta;
+  la seconda apertura mostra "Link già utilizzato").
+- Capi pronti: `DEMO-JEANS-01` (impatto con fonti), `DEMO-BORSA-01` (3 proprietari), `DEMO-MANOMESSO`, `DEMO-FALSO-99`.
+- "Il tuo armadio" e "Storico" in alto: salvati solo sul telefono, nessun account.
 
 ## Domande probabili
 

@@ -15,7 +15,11 @@ export default function ModuloCapo({ iniziale = {}, nuovo = false, onInvia, inCo
     const dati = {};
     for (const [chiave, valore] of Object.entries(valori)) {
       if (!nuovo && (chiave === "tagId" || chiave === "proprietarioIniziale")) continue;
-      if (valore === "" || valore === undefined || valore === null) continue;
+      if (valore === "" || valore === undefined || valore === null) {
+        // in modifica, un campo facoltativo svuotato viene cancellato (null)
+        if (!nuovo && iniziale[chiave] != null && iniziale[chiave] !== "") dati[chiave] = null;
+        continue;
+      }
       dati[chiave] = chiave === "annoProduzione" ? Number(valore) : typeof valore === "string" ? valore.trim() : valore;
     }
     onInvia(dati);

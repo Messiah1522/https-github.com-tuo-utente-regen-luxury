@@ -4,7 +4,6 @@ import { TIPI_EVENTO, RUOLI, CATEGORIE, MATERIALI, STATI_CAPO, TAG_REGEX } from 
 
 const testo = (max) => z.string().trim().min(1, "Campo obbligatorio").max(max, `Massimo ${max} caratteri`);
 const testoOpzionale = (max) => z.string().trim().max(max, `Massimo ${max} caratteri`).optional();
-const annoCorrente = new Date().getFullYear();
 
 export const tagId = z.string().trim().regex(TAG_REGEX, "Il tagId deve avere 3-64 caratteri tra lettere, numeri, - e _");
 export const objectId = z.string().regex(/^[a-f\d]{24}$/i, "ID non valido");
@@ -34,8 +33,16 @@ const campiCapo = {
   filieraProvenienza: testoOpzionale(200),
   categoria: z.enum(CATEGORIE).optional(),
   materialePrincipale: z.enum(MATERIALI).optional(),
-  annoProduzione: z.coerce.number().int().min(1900).max(annoCorrente).optional(),
+  annoProduzione: z.coerce
+    .number()
+    .int()
+    .min(1900)
+    .refine((a) => a <= new Date().getFullYear(), "L'anno non può essere nel futuro")
+    .optional(),
 };
+
+// In modifica i campi facoltativi si possono svuotare inviando null
+const svuotabile = (schema) => schema.unwrap().nullable().optional();
 
 export const nuovoCapo = z
   .object({ ...campiCapo, tagId, proprietarioIniziale: testoOpzionale(100) })
@@ -43,7 +50,13 @@ export const nuovoCapo = z
 
 // Il tagId NON è modificabile: è il legame con il chip fisico
 export const modificaCapo = z
-  .object(campiCapo)
+  .object({
+    ...campiCapo,
+    filieraProvenienza: svuotabile(campiCapo.filieraProvenienza),
+    categoria: svuotabile(campiCapo.categoria),
+    materialePrincipale: svuotabile(campiCapo.materialePrincipale),
+    annoProduzione: svuotabile(campiCapo.annoProduzione),
+  })
   .partial()
   .strict()
   .refine((d) => Object.keys(d).length > 0, "Nessun campo da modificare");
@@ -58,7 +71,7 @@ export const nuovoEvento = z
     operatore: testoOpzionale(100),
     data: z.coerce
       .date()
-      .max(new Date(Date.now() + 60_000), "La data non può essere nel futuro")
+      .refine((d) => d.getTime() <= Date.now() + 60_000, "La data non può essere nel futuro")
       .optional(),
   })
   .strict();

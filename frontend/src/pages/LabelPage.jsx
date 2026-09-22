@@ -16,7 +16,7 @@ export default function LabelPage() {
       .then(([c, immagine]) => {
         setCapo(c);
         url = URL.createObjectURL(immagine);
-        setQr(url);
+        setQr({ src: url, indirizzo: immagine.urlVerifica });
       })
       .catch(setErrore);
     return () => url && URL.revokeObjectURL(url);
@@ -24,7 +24,8 @@ export default function LabelPage() {
 
   if (errore) return <Errore errore={errore} />;
   if (!capo || !qr) return <Caricamento />;
-  const indirizzo = `${window.location.origin}/v/${encodeURIComponent(capo.tagId)}`;
+  // l'indirizzo stampato è lo stesso contenuto nel QR (PUBLIC_BASE_URL del backend)
+  const indirizzo = qr.indirizzo ?? `${window.location.origin}/v/${encodeURIComponent(capo.tagId)}`;
 
   return (
     <section>
@@ -37,7 +38,7 @@ export default function LabelPage() {
         </button>
       </div>
       <div className="etichetta-stampa">
-        <img src={qr} alt={`QR code di verifica del capo ${capo.tagId}`} />
+        <img src={qr.src} alt={`QR code di verifica del capo ${capo.tagId}`} />
         <div>
           <p className="sopratitolo">Passaporto digitale</p>
           <h2>{capo.brand}</h2>

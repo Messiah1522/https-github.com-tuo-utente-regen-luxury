@@ -6,8 +6,9 @@ import { TIPI_EVENTO, data, hashBreve, numero, maiuscola } from "../utils/format
 
 const ESITI = {
   verificato: { classe: "ok", titolo: "Capo autentico", icona: "✓" },
-  in_attesa: { classe: "attesa", titolo: "Autentico · registrazione in corso", icona: "…" },
-  incompleto: { classe: "attesa", titolo: "Autentico · storico parzialmente registrato", icona: "!" },
+  // "Autentico" solo quando tutto coincide con la blockchain
+  in_attesa: { classe: "attesa", titolo: "Registrazione in corso", icona: "…" },
+  incompleto: { classe: "attesa", titolo: "Verifica non conclusiva", icona: "!" },
   manomesso: { classe: "ko", titolo: "Attenzione: dati non coincidenti", icona: "✕" },
   non_registrato: { classe: "ko", titolo: "Capo non registrato sulla blockchain", icona: "✕" },
 };
@@ -33,12 +34,12 @@ function Esito({ certificato, nfc }) {
   );
 }
 
-// "Aggiungi al mio armadio": solo per capi autentici; l'elenco resta sul dispositivo
+// "Aggiungi al mio armadio": solo per capi verificati; l'elenco resta sul dispositivo
 function AzioniArmadio({ dati }) {
   const armadio = useArmadio();
   const { tagId } = dati.capo;
-  if (ESITI[dati.certificatoAutenticita.integrita.stato]?.classe === "ko") return null;
   const presente = armadio.some((c) => c.tagId === tagId);
+  if (!presente && !dati.certificatoAutenticita.autentico) return null;
   return (
     <div className="azioni-armadio">
       {presente ? (
@@ -91,6 +92,9 @@ function Impatto({ impatto }) {
           </span>
         </div>
       </div>
+      {impatto.verificato === false && (
+        <p className="nota">Valori di letteratura ancora da verificare sulla fonte originale: considerali indicativi.</p>
+      )}
       <details className="fonti">
         <summary>Come è calcolato</summary>
         <p>{impatto.metodo}.</p>

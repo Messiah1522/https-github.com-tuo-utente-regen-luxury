@@ -25,18 +25,44 @@ async function creaFirmatario() {
 }
 
 let contrattoPromise;
+let firmatario;
 function contratto() {
   if (!contrattoPromise) {
     if (!process.env.CONTRACT_ADDRESS) throw new Error("CONTRACT_ADDRESS mancante nel file .env");
-    contrattoPromise = creaFirmatario().then((firmatario) => new ethers.Contract(process.env.CONTRACT_ADDRESS, abi, firmatario));
+    contrattoPromise = creaFirmatario()
+      .then((f) => {
+        firmatario = f;
+        return new ethers.Contract(process.env.CONTRACT_ADDRESS, abi, f);
+      })
+      .catch((err) => {
+        contrattoPromise = undefined; // es. nodo non ancora avviato: si riprova alla prossima richiesta
+        throw err;
+      });
   }
   return contrattoPromise;
 }
 
-async function invia(chiamata) {
-  const tx = await chiamata;
-  const ricevuta = await tx.wait();
-  return { txHash: ricevuta.hash, blocco: ricevuta.blockNumber, rete: RETE, gasUsato: Number(ricevuta.gasUsed) };
+// Le transazioni partono una alla volta: con un solo firmatario i nonce restano in
+// sequenza. Se un invio fallisce (revert, errore della rete) il NonceManager viene
+// riallineato con la rete, altrimenti resterebbe un "buco" e le transazioni
+// successive non verrebbero mai confermate. Un solo server deve usare la stessa chiave.
+const ATTESA_MAX_MS = Number(process.env.TX_TIMEOUT_MS ?? 120_000);
+let codaInvii = Promise.resolve();
+
+function invia(prepara) {
+  const esegui = async () => {
+    try {
+      const tx = await prepara();
+      const ricevuta = await tx.wait(1, ATTESA_MAX_MS);
+      return { txHash: ricevuta.hash, blocco: ricevuta.blockNumber, rete: RETE, gasUsato: Number(ricevuta.gasUsed) };
+    } catch (err) {
+      firmatario?.reset?.();
+      throw err;
+    }
+  };
+  const risultato = codaInvii.then(esegui, esegui);
+  codaInvii = risultato.catch(() => {});
+  return risultato;
 }
 
 async function tokenDi(c, tagId) {
@@ -52,22 +78,22 @@ export default {
 
   async registraCapo({ tagId, dataHash }) {
     const c = await contratto();
-    return invia(c.registerItem(await c.runner.getAddress(), improntaTag(tagId), dataHash));
+    return invia(async () => c.registerItem(await c.runner.getAddress(), improntaTag(tagId), dataHash));
   },
 
   async aggiornaDatiCapo({ tagId, dataHash }) {
     const c = await contratto();
-    return invia(c.updateDataHash(await tokenDi(c, tagId), dataHash));
+    return invia(async () => c.updateDataHash(await tokenDi(c, tagId), dataHash));
   },
 
   async registraEvento({ tagId, hash }) {
     const c = await contratto();
-    return invia(c.recordRegeneration(await tokenDi(c, tagId), hash));
+    return invia(async () => c.recordRegeneration(await tokenDi(c, tagId), hash));
   },
 
   async registraPassaggio({ tagId, hash }) {
     const c = await contratto();
-    return invia(c.recordTransfer(await tokenDi(c, tagId), hash));
+    return invia(async () => c.recordTransfer(await tokenDi(c, tagId), hash));
   },
 
   async leggiRegistro(tagId) {

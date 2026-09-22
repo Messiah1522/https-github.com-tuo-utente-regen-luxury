@@ -26,7 +26,10 @@ function inCoda(itemId, operazione) {
   return prossima;
 }
 
-// Attende che tutte le operazioni in coda siano concluse (usato da test e script)
+// true se questo server ha una scrittura in corso per il capo (dato in memoria, non falsificabile dal database)
+export const inLavorazione = (itemId) => code.has(String(itemId));
+
+// Attende che tutte le operazioni in coda siano concluse (usato da test, script e spegnimento del server)
 export async function attendiAncoraggi() {
   while (code.size > 0) await Promise.allSettled([...code.values()]);
 }
@@ -59,6 +62,9 @@ export function ancoraDatiCapo(itemId, { nuovo = false } = {}) {
     }
     const aggiornato = await Item.findById(itemId);
     if (!aggiornato) return;
+    // Nel frattempo i dati sono stati modificati di nuovo: la loro scrittura è già in coda,
+    // quindi non si segna "confermato" un'impronta ormai superata.
+    if (improntaCapo(aggiornato) !== hash && aggiornato.registrazione?.stato === "in_attesa") return;
     aggiornato.registrazione = esito;
     if (esito.stato === "confermato" && !aggiornato.blockchainTxHash) aggiornato.blockchainTxHash = esito.txHash;
     await aggiornato.save();
@@ -74,7 +80,14 @@ function ancoraVoce(itemId, voceId, { campo, improntaDi, invia }) {
     const hash = improntaDi(voce);
     let esito;
     try {
-      esito = confermato(hash, await invia(chain, { tagId: item.tagId, hash }));
+      // Già presente on-chain (es. conferma persa per un riavvio): non si scrive due volte,
+      // altrimenti il controllo di integrità troverebbe una voce in più sulla blockchain.
+      const registro = await chain.leggiRegistro(item.tagId);
+      if (registro.storico.includes(hash)) {
+        esito = { ...(voce.ancoraggio?.toObject?.() ?? {}), stato: "confermato", hash, errore: undefined, aggiornatoIl: new Date() };
+      } else {
+        esito = confermato(hash, await invia(chain, { tagId: item.tagId, hash }));
+      }
     } catch (err) {
       esito = fallito(hash, err);
     }

@@ -8,12 +8,13 @@ e `npm run misura-tempi`. Legenda: ✅ verificato · ⏭️ ancora da provare in
 Come rieseguire tutto:
 
 ```bash
-cd backend && npm test                       # 38 test automatici (database in memoria)
+npm test                                     # 48 test automatici (database in memoria), dalla cartella principale
 npm run dev                                  # in un secondo terminale:
 npm run passaggi                             # Passaggi 1-8 sull'API reale
 npm run misura-tempi                         # requisito P (< 2 s)
-cd ../contracts && npm run chain             # in un terzo terminale, poi:
-npm run misura-gas                           # gas e controlli di sicurezza del contratto
+cd contracts && npm install && npm run compile
+npm run chain                                # in un terzo terminale, poi:
+npm run misura-gas                           # gas e controlli di sicurezza (esce con errore se un controllo fallisce)
 cd ../ai-module && python -m pytest test/    # servizio AI
 ```
 
@@ -26,7 +27,7 @@ cd ../ai-module && python -m pytest test/    # servizio AI
 | F | Dashboard di sostenibilità (CO₂, acqua) | `verify.test.js`: jeans → 12 kg CO₂e, 1.753 L con fonti; categoria senza dati → "non disponibile" | ✅ || ✅ categoria senza dati (giacca) → "non disponibile" · ⏭️ jeans |
 | U | Interfaccia mobile-first | Test nel browser (Chromium, schermo 390×844): home, certificato, gestione, etichetta, NFC | ✅ schermate in `docs/validazione/schermate/` || ⏭️ da provare nel browser (`npm run web`) |
 | U | Accesso pubblico senza registrazione | Passaggio 6 (verifica senza token) | ✅ || ✅ |
-| R | Immutabilità / rilevazione delle manomissioni | `verify.test.js`: modifica di un evento, dei dati del capo e cancellazione di un passaggio direttamente nel database → "manomesso"; stesso test su smart contract reale | ✅ rilevate tutte e 3 le manomissioni || ✅ integrità "verificato" (Passaggio 8) · ⏭️ manomissione simulata |
+| R | Immutabilità / rilevazione delle manomissioni | `verify.test.js`: modifica di un evento, dei dati del capo e cancellazione di un passaggio direttamente nel database → "manomesso"; stesso test su smart contract reale. `integrita.test.js`: stati di attesa o di errore falsificati nel database non danno mai "autentico" | ✅ rilevate tutte e 3 le manomissioni || ✅ integrità "verificato" (Passaggio 8) · ⏭️ manomissione simulata |
 | R | Anti-duplicazione del tag | `items.test.js` anti-replay (anche 3 richieste simultanee: 1×201, 2×409); Passaggio 7; tag eliminato non riusabile | ✅ || ✅ 409 sul tag duplicato |
 | R | Anti-replay del chip NFC (chip clonato) | `sun.test.js`: vettore NXP AN12196, stesso URL riusato → 409, CMAC alterato → 400 | ✅ || — serve il chip fisico |
 | R | Accesso controllato all'area gestionale | `auth.test.js`: 401 senza login, 403 per ruolo non ammesso, account disattivato | ✅ || ✅ 401 senza login |
@@ -45,6 +46,11 @@ cd ../ai-module && python -m pytest test/    # servizio AI
 - I tempi con Atlas (media 37,9 ms contro 5,7 ms in locale) includono la latenza di rete verso il cluster, ma la
   blockchain era ancora simulata: vanno rimisurati dopo il deploy del contratto su Polygon Amoy.
 - L'anticlonazione del chip è verificata con il vettore ufficiale NXP, non ancora con un chip fisico.
+- Il registro blockchain simulato della demo online è salvato nello stesso cluster del database: dimostra il
+  meccanismo, ma l'indipendenza reale dei dati si ottiene solo con Polygon Amoy.
+- "Autentico" solo quando tutto coincide con la blockchain. Una scrittura fallita lascia il capo in "verifica non
+  conclusiva" finché un operatore non esegue `npm run migra`: il riancoraggio non è automatico apposta, per non
+  registrare sulla blockchain dati eventualmente alterati nel database.
 - Il modulo AI non è ancora addestrato: accuratezza e matrice di confusione arriveranno dal notebook.
 - Con la custodia della piattaforma (decisione 4.2) la blockchain prova l'integrità dei dati, non l'identità
   dell'operatore che li ha inseriti.

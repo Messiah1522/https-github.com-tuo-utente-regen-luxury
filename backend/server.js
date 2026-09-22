@@ -1,6 +1,7 @@
 import "dotenv/config"; // carica le variabili d'ambiente dal file .env (deve restare il primo import)
 import { connectDB, spiegaErroreMongo } from "./config/db.js";
 import { creaApp } from "./app.js";
+import { attendiAncoraggi } from "./services/anchorService.js";
 
 const PORT = process.env.PORT || 5001;
 
@@ -18,6 +19,17 @@ try {
     );
     process.exit(1);
   });
+
+  // Spegnimento ordinato (Render lo chiede a ogni nuovo deploy o sospensione): si attendono
+  // le scritture blockchain in corso, così nessun capo resta "in attesa" per sempre.
+  const spegni = async (segnale) => {
+    console.log(`${segnale}: chiusura del server, attendo le scritture blockchain in corso…`);
+    server.close();
+    await Promise.race([attendiAncoraggi(), new Promise((r) => setTimeout(r, 20_000))]);
+    process.exit(0);
+  };
+  process.once("SIGTERM", () => spegni("SIGTERM"));
+  process.once("SIGINT", () => spegni("SIGINT"));
 } catch (err) {
   console.error("Errore di avvio:", err.message);
   const consiglio = spiegaErroreMongo(err);

@@ -14,7 +14,8 @@ export function AuthProvider({ children }) {
     }
     api("/auth/me")
       .then((d) => setUtente(d.utente))
-      .catch(() => token.cancella())
+      // solo un 401 significa sessione non valida; rete assente o server in avvio no
+      .catch((err) => err.status === 401 && token.cancella())
       .finally(() => setPronto(true));
   }, []);
 

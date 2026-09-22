@@ -54,7 +54,11 @@ export async function api(percorso, { metodo = "GET", corpo, formato = "json" } 
     token.cancella();
     window.dispatchEvent(new Event("regen:sessione-scaduta"));
   }
-  if (formato === "blob" && risposta.ok) return risposta.blob();
+  if (formato === "blob" && risposta.ok) {
+    const blob = await risposta.blob();
+    // il QR code riporta nell'intestazione l'indirizzo che contiene
+    return Object.assign(blob, { urlVerifica: risposta.headers.get("X-Url-Verifica") });
+  }
 
   const testo = await risposta.text();
   let dati = null;

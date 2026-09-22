@@ -28,6 +28,8 @@ export function creaApp() {
           "worker-src": ["'self'", "blob:"],
           // foto decorative della home (Unsplash, licenza Unsplash)
           "img-src": ["'self'", "data:", "blob:", "https://images.unsplash.com"],
+          // servizio AI opzionale (ai-module) su un altro dominio: AI_ORIGIN=https://…
+          "connect-src": ["'self'", ...(process.env.AI_ORIGIN ? [process.env.AI_ORIGIN] : [])],
           "upgrade-insecure-requests": process.env.NODE_ENV === "production" ? [] : null,
         },
       },
@@ -49,6 +51,8 @@ export function creaApp() {
   // --- Web app React (se compilata): stesso dominio e stesso HTTPS delle API ---
   if (fs.existsSync(path.join(cartellaFrontend, "index.html"))) {
     app.use(express.static(cartellaFrontend, { index: false, maxAge: "1h" }));
+    // un file di build inesistente (es. versione precedente in cache) deve dare 404, non la pagina HTML
+    app.use("/assets", (req, res) => res.status(404).end());
     app.get("*", (req, res) => res.sendFile(path.join(cartellaFrontend, "index.html")));
   } else {
     // Rotta di health-check per verificare che il server sia attivo

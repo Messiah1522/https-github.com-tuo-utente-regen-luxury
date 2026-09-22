@@ -83,5 +83,15 @@ console.log(`\nLettura pubblica recordByTag: 0 gas (chiamata di sola lettura)`);
 console.log(`Controlli: tag duplicato rifiutato = ${duplicato}; account senza ruolo rifiutato = ${negato}`);
 if (!gwei) console.log("Per stimare i costi: npm run misura-gas -- --gwei <prezzo gas> --prezzo-pol <euro per POL>");
 
-writeFileSync(new URL("./misure-gas.json", import.meta.url), JSON.stringify({ data: new Date().toISOString(), rpc, gwei, prezzoPol, misure: righe }, null, 2));
-console.log("Risultati salvati in contracts/misure-gas.json");
+const letturaCoerente = registrato && dataHash === h("dati-v2") && storico.length === 3;
+writeFileSync(
+  new URL("../docs/costi/misure-gas.json", import.meta.url),
+  JSON.stringify({ data: new Date().toISOString(), rpc, gwei, prezzoPol, controlli: { letturaCoerente, duplicato, negato }, misure: righe }, null, 2)
+);
+console.log("Risultati salvati in docs/costi/misure-gas.json");
+
+// Un controllo di sicurezza non superato deve far fallire lo script (codice di uscita 1)
+if (!letturaCoerente || !duplicato || !negato) {
+  console.error("CONTROLLI DI SICUREZZA NON SUPERATI");
+  process.exitCode = 1;
+}

@@ -2,14 +2,14 @@
 // dalla chat (spazi invisibili, pedici/apici Unicode, % non escapati, ecc.).
 //
 // Uso (serve solo Node.js, già installato per il backend):
-//   node pulisci-tex.mjs capitolo2.tex
+//   node tools/pulisci-tex.mjs capitolo2.tex
 // -> crea "capitolo2.pulito.tex" accanto all'originale e stampa un report.
 //    L'originale NON viene modificato: controlla il risultato e poi sostituiscilo.
 import { readFileSync, writeFileSync } from 'node:fs';
 
 const file = process.argv[2];
 if (!file) {
-  console.error('Uso: node pulisci-tex.mjs <file.tex>');
+  console.error('Uso: node tools/pulisci-tex.mjs <file.tex>');
   process.exit(1);
 }
 

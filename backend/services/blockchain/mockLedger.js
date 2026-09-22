@@ -8,11 +8,11 @@
  *  - lo storico accetta solo aggiunte (nessuna cancellazione);
  *  - il registro sopravvive ai riavvii.
  * Dove vive il registro (MOCK_LEDGER_STORE):
- *  - "file" (predefinito): file JSON separato dal database (MOCK_LEDGER_FILE);
- *  - "mongo": collezione "registro_simulato" dello stesso cluster. Serve per la
- *    demo online gratuita (su Render i file si cancellano a ogni riavvio) e per
- *    condividere lo stesso registro tra il Mac e il sito online. È meno
- *    indipendente dal database del file: in produzione si usa Polygon.
+ *  - "mongo" (predefinito): collezione "registro_simulato" dello stesso cluster.
+ *    Serve per la demo online gratuita (su Render i file si cancellano a ogni
+ *    riavvio) e per condividere lo stesso registro tra il Mac e il sito online.
+ *    È meno indipendente dal database del file: in produzione si usa Polygon;
+ *  - "file": file JSON separato dal database (MOCK_LEDGER_FILE), usato dai test.
  */
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
@@ -22,7 +22,7 @@ import { improntaTag } from "../hashService.js";
 
 const RETE = "mock-polygon";
 const file = () => path.resolve(process.env.MOCK_LEDGER_FILE ?? "./data/mock-ledger.json");
-const suMongo = () => (process.env.MOCK_LEDGER_STORE ?? "file").toLowerCase() === "mongo";
+const suMongo = () => (process.env.MOCK_LEDGER_STORE || "mongo").toLowerCase() === "mongo";
 const latenza = () => Number(process.env.MOCK_CHAIN_LATENCY_MS ?? 300);
 const attendi = (ms) => new Promise((r) => setTimeout(r, ms));
 const vuoto = () => ({ blocco: 1_000_000, prossimoToken: 1, capi: {} });
@@ -76,10 +76,12 @@ async function salvaConVersione(modifica) {
 let fileUnito = false;
 async function unisciFileLocale() {
   if (fileUnito) return;
-  fileUnito = true;
   const locale = await leggiFile().catch(() => vuoto());
   const voci = Object.entries(locale.capi ?? {});
-  if (voci.length === 0) return;
+  if (voci.length === 0) {
+    fileUnito = true;
+    return;
+  }
   let importati = 0;
   await salvaConVersione((stato) => {
     const mancanti = voci.filter(([chiave]) => !stato.capi[chiave]);
@@ -95,6 +97,7 @@ async function unisciFileLocale() {
     importati = mancanti.length;
     return true;
   });
+  fileUnito = true; // solo dopo un'importazione riuscita
   if (importati) console.log(`Registro simulato: ${importati} capi importati dal file locale nel database`);
 }
 

@@ -39,11 +39,15 @@ _modello = {"sessione": None, "classi": None}
 def carica_modello():
     """Carica il modello ONNX se presente (altrimenti il servizio risponde 503)."""
     percorso = CARTELLA_MODELLI / "materiali.onnx"
-    if _modello["sessione"] is None and percorso.exists():
+    file_classi = CARTELLA_MODELLI / "classi.json"
+    # servono entrambi i file: se ne manca uno il modello resta "non caricato" (503), mai a metà
+    if _modello["sessione"] is None and percorso.exists() and file_classi.exists():
         import onnxruntime as ort
 
-        _modello["sessione"] = ort.InferenceSession(str(percorso), providers=["CPUExecutionProvider"])
-        _modello["classi"] = json.loads((CARTELLA_MODELLI / "classi.json").read_text())
+        classi = json.loads(file_classi.read_text())
+        sessione = ort.InferenceSession(str(percorso), providers=["CPUExecutionProvider"])
+        _modello["classi"] = classi
+        _modello["sessione"] = sessione
     return _modello["sessione"]
 
 

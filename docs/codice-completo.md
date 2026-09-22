@@ -1,11 +1,10 @@
 # Codice completo del progetto
 
-Esportato il 22/09/2026, 11:54:49 da `rl` — 120 file.
+Esportato il 22/09/2026, 18:30:59 da `rl` — 121 file.
 
 ## Indice
 
 - `.gitignore`
-- `ai-module/lca/coefficienti.md`
 - `ai-module/notebooks/addestramento_colab.ipynb`
 - `ai-module/README.md`
 - `ai-module/requirements-addestramento.txt`
@@ -42,6 +41,8 @@ Esportato il 22/09/2026, 11:54:49 da `rl` — 120 file.
 - `backend/scripts/migra-ancoraggi.js`
 - `backend/scripts/misura-tempi.js`
 - `backend/scripts/passaggi.js`
+- `backend/scripts/passaggi.ps1`
+- `backend/scripts/popola-demo.js`
 - `backend/server.js`
 - `backend/services/anchorService.js`
 - `backend/services/blockchain/index.js`
@@ -55,11 +56,11 @@ Esportato il 22/09/2026, 11:54:49 da `rl` — 120 file.
 - `backend/test/auth.test.js`
 - `backend/test/hash.test.js`
 - `backend/test/helpers.js`
+- `backend/test/integrita.test.js`
 - `backend/test/items.test.js`
 - `backend/test/registro-mongo.test.js`
 - `backend/test/sun.test.js`
 - `backend/test/verify.test.js`
-- `backend/test-powershell/passaggi.ps1`
 - `backend/validators/schemi.js`
 - `contracts/.env.example`
 - `contracts/.gitignore`
@@ -77,7 +78,7 @@ Esportato il 22/09/2026, 11:54:49 da `rl` — 120 file.
 - `docs/deploy.md`
 - `docs/latex/bibliografia-starter.bib`
 - `docs/latex/latex-workshop-settings.jsonc`
-- `docs/latex/pulisci-tex.mjs`
+- `docs/lca/coefficienti.md`
 - `docs/nfc/configurazione-tag.md`
 - `docs/uml/casi_d_uso.puml`
 - `docs/validazione/tabella-furps.md`
@@ -123,7 +124,7 @@ Esportato il 22/09/2026, 11:54:49 da `rl` — 120 file.
 - `README.md`
 - `render.yaml`
 - `tools/esporta-codice.mjs`
-- `tools/esporta-codice.ps1`
+- `tools/pulisci-tex.mjs`
 
 ## `.gitignore`
 
@@ -141,8 +142,6 @@ coverage/
 backend/data/mock-ledger.json
 contracts/cache/
 contracts/artifacts/
-contracts/RegenLuxuryPassport.json
-contracts/misure-gas.json
 ai-module/.venv/
 ai-module/data/raw/*
 ai-module/data/processed/*
@@ -158,51 +157,6 @@ __pycache__/
 *.synctex.gz
 # sistema
 .DS_Store
-```
-
-## `ai-module/lca/coefficienti.md`
-
-```markdown
-# Coefficienti LCA per la stima dell'impatto evitato (punto 23)
-
-Il calcolo è nel backend (`backend/services/impactService.js`, dati in `backend/data/coefficienti-lca.json`).
-
-**Metodo.** Un capo rigenerato evita in parte l'acquisto di un capo nuovo equivalente:
-
-> impatto evitato = impatto di produzione del capo nuovo × fattore di sostituzione
-
-Si considerano solo le fasi di **produzione** (fibra → tessuto → confezione → distribuzione): l'uso e il fine
-vita avvengono comunque, con capo nuovo o rigenerato. Il risultato è una **stima**, non una misura.
-
-## Fattore di sostituzione
-
-| Valore usato | Intervallo | Fonte |
-|---|---|---|
-| **0,60** (prudente) | 0,60 – 0,85 | Farrant L., Olsen S.I., Wangel A. (2010). *Environmental benefits from reusing clothes*. Int. J. Life Cycle Assessment, 15, 726–736: l'acquisto di 100 capi di seconda mano evita la produzione di 60–85 capi nuovi. |
-
-## Impatto di produzione per categoria
-
-| Categoria | kg CO₂e | Litri d'acqua | Unità funzionale | Fonte | Stato |
-|---|---|---|---|---|---|
-| jeans | **20,0** | **2.922** | un paio di Levi's 501; fasi fibra, tessuto, confezione, accessori/imballaggio, trasporto e vendita | Levi Strauss & Co. (2015), *The Life Cycle of a Jean*. Totale ciclo di vita 33,4 kg CO₂e e 3.781 L: esclusi cura del consumatore (12,5 kg; 860 L) e fine vita (0,9 kg; 0 L) | verificato sulla presentazione dei risultati LCA |
-| t-shirt | 3,53 | 725 | t-shirt in cotone da 250 g, cradle-to-gate | Forfora N. et al. (2026), *A Comparative Life Cycle Assessment of T-Shirt Production Using Viscose, Lyocell, Cotton, and Polyester*, Sustainability 18(8), 4070: 14,1 kg CO₂e/kg e 2,9 m³/kg | **da verificare** sulla tabella dei risultati dell'articolo |
-
-Risultato mostrato per un paio di jeans: 20,0 × 0,6 = **12 kg CO₂e** e 2.922 × 0,6 = **1.753 L**
-(intervallo 12–17 kg e 1.753–2.484 L con fattore 0,60–0,85).
-
-## Categorie senza dati
-
-Per le altre categorie (giacca, borsa, scarpe, …) la web app mostra "stima non disponibile" invece di un
-numero senza fonte. Per aggiungerne una, inserire nel JSON valori con **fonte, anno, unità funzionale e
-confini del sistema** (ISO 14040/14044) e impostare `"verificato": true` solo dopo aver letto la fonte.
-
-## Nota sul prototipo precedente
-
-La prima versione del backend usava 15 kg CO₂e e 2.700 L per capo, moltiplicati per il numero di interventi,
-senza fonte: sono stati sostituiti da questo metodo, più prudente e citabile. Il dato molto diffuso "2.700 litri
-per una t-shirt" (WWF, 2013) è un'impronta idrica (water footprint), dovuta soprattutto alla coltivazione del
-cotone: è una grandezza calcolata con un metodo diverso dal consumo d'acqua dell'LCA, quindi non va mescolata
-con i valori di questa tabella.
 ```
 
 ## `ai-module/notebooks/addestramento_colab.ipynb`
@@ -337,7 +291,7 @@ Da una foto del capo il modulo **suggerisce il materiale principale** (cotone, l
 pelle, poliestere, nylon, viscosa). Il suggerimento compare nel modulo "Nuovo capo" della web app e va
 sempre confermato con l'etichetta di composizione. L'**impatto ambientale** evitato non è calcolato dalla
 rete neurale: lo calcola il backend a partire dalla categoria del capo e da coefficienti LCA con fonte
-(`backend/data/coefficienti-lca.json`, vedi `lca/coefficienti.md`).
+(`backend/data/coefficienti-lca.json`, vedi `docs/lca/coefficienti.md`).
 
 ## Scelta del dataset (punto 21)
 
@@ -403,7 +357,7 @@ python -m pytest test/     # servizio con un modello ONNX fittizio + preparazion
 | `src/servizio.py` | API FastAPI `/classify` |
 | `notebooks/` | notebook per Colab (stesso codice di `src/`) |
 | `models/` | modello addestrato (non versionato) |
-| `lca/` | coefficienti ambientali con fonti |
+| `../docs/lca/` | coefficienti ambientali con fonti (usati dal backend) |
 | `data/` | dataset (non versionato) |
 ````
 
@@ -801,11 +755,15 @@ _modello = {"sessione": None, "classi": None}
 def carica_modello():
     """Carica il modello ONNX se presente (altrimenti il servizio risponde 503)."""
     percorso = CARTELLA_MODELLI / "materiali.onnx"
-    if _modello["sessione"] is None and percorso.exists():
+    file_classi = CARTELLA_MODELLI / "classi.json"
+    # servono entrambi i file: se ne manca uno il modello resta "non caricato" (503), mai a metà
+    if _modello["sessione"] is None and percorso.exists() and file_classi.exists():
         import onnxruntime as ort
 
-        _modello["sessione"] = ort.InferenceSession(str(percorso), providers=["CPUExecutionProvider"])
-        _modello["classi"] = json.loads((CARTELLA_MODELLI / "classi.json").read_text())
+        classi = json.loads(file_classi.read_text())
+        sessione = ort.InferenceSession(str(percorso), providers=["CPUExecutionProvider"])
+        _modello["classi"] = classi
+        _modello["sessione"] = sessione
     return _modello["sessione"]
 
 
@@ -1006,9 +964,9 @@ RATE_LIMIT_LOGIN_PER_15MIN=10
 # mock    = registro simulato su file (nessun costo)
 # polygon = smart contract reale (Polygon Amoy o chain locale Hardhat)
 BLOCKCHAIN_MODE=mock
-# Dove salvare il registro simulato: file (predefinito, separato dal database) oppure mongo
-# (collezione del database: serve se l'app gira anche online su Render, dove i file si cancellano)
-MOCK_LEDGER_STORE=file
+# Dove salvare il registro simulato: mongo (predefinito: collezione del database, condivisa tra Mac e
+# sito online su Render, dove i file si cancellano) oppure file (separato dal database, usato dai test)
+MOCK_LEDGER_STORE=mongo
 MOCK_LEDGER_FILE=./data/mock-ledger.json
 MOCK_CHAIN_LATENCY_MS=300
 POLYGON_RPC_URL=https://rpc-amoy.polygon.technology
@@ -1064,6 +1022,8 @@ export function creaApp() {
           "worker-src": ["'self'", "blob:"],
           // foto decorative della home (Unsplash, licenza Unsplash)
           "img-src": ["'self'", "data:", "blob:", "https://images.unsplash.com"],
+          // servizio AI opzionale (ai-module) su un altro dominio: AI_ORIGIN=https://…
+          "connect-src": ["'self'", ...(process.env.AI_ORIGIN ? [process.env.AI_ORIGIN] : [])],
           "upgrade-insecure-requests": process.env.NODE_ENV === "production" ? [] : null,
         },
       },
@@ -1085,6 +1045,8 @@ export function creaApp() {
   // --- Web app React (se compilata): stesso dominio e stesso HTTPS delle API ---
   if (fs.existsSync(path.join(cartellaFrontend, "index.html"))) {
     app.use(express.static(cartellaFrontend, { index: false, maxAge: "1h" }));
+    // un file di build inesistente (es. versione precedente in cache) deve dare 404, non la pagina HTML
+    app.use("/assets", (req, res) => res.status(404).end());
     app.get("*", (req, res) => res.sendFile(path.join(cartellaFrontend, "index.html")));
   } else {
     // Rotta di health-check per verificare che il server sia attivo
@@ -1283,9 +1245,9 @@ export async function creaItem(req, res, next) {
     const item = await Item.create({
       ...dati,
       creatoDa: req.utente.id,
-      registrazione: { stato: "in_attesa" },
+      registrazione: { stato: "in_attesa", aggiornatoIl: new Date() },
       passaggiProprieta: proprietarioIniziale
-        ? [{ proprietario: proprietarioIniziale, registratoDa: req.utente.id, ancoraggio: { stato: "in_attesa" } }]
+        ? [{ proprietario: proprietarioIniziale, registratoDa: req.utente.id, ancoraggio: { stato: "in_attesa", aggiornatoIl: new Date() } }]
         : [],
     });
 
@@ -1356,8 +1318,9 @@ export async function modificaItem(req, res, next) {
     const item = await Item.findById(req.dati.params.id);
     if (!item) return nonTrovato(res);
     if (item.stato === "archiviato") return archiviato(res);
-    item.set(req.dati.body);
-    item.registrazione = { ...(item.registrazione?.toObject?.() ?? {}), stato: "in_attesa" };
+    // null = campo svuotato dall'utente: viene rimosso
+    for (const [campo, valore] of Object.entries(req.dati.body)) item.set(campo, valore === null ? undefined : valore);
+    item.registrazione = { ...(item.registrazione?.toObject?.() ?? {}), stato: "in_attesa", errore: undefined, aggiornatoIl: new Date() };
     await item.save();
     ancoraDatiCapo(item._id);
     res.json(item);
@@ -1373,7 +1336,7 @@ export async function archiviaItem(req, res, next) {
     if (!item) return nonTrovato(res);
     if (item.stato === "archiviato") return res.status(409).json({ errore: "Il capo è già archiviato." });
     item.stato = "archiviato";
-    item.registrazione = { ...(item.registrazione?.toObject?.() ?? {}), stato: "in_attesa" };
+    item.registrazione = { ...(item.registrazione?.toObject?.() ?? {}), stato: "in_attesa", errore: undefined, aggiornatoIl: new Date() };
     await item.save();
     ancoraDatiCapo(item._id);
     res.json(item);
@@ -1395,7 +1358,7 @@ export async function aggiungiEvento(req, res, next) {
     item.storicoRigenerazione.push({
       ...req.dati.body,
       registratoDa: req.utente.id,
-      ancoraggio: { stato: "in_attesa" },
+      ancoraggio: { stato: "in_attesa", aggiornatoIl: new Date() },
     });
     await item.save();
     ancoraEvento(item._id, item.storicoRigenerazione.at(-1)._id);
@@ -1420,7 +1383,7 @@ export async function aggiungiPassaggioProprieta(req, res, next) {
     item.passaggiProprieta.push({
       proprietario: req.dati.body.proprietario,
       registratoDa: req.utente.id,
-      ancoraggio: { stato: "in_attesa" },
+      ancoraggio: { stato: "in_attesa", aggiornatoIl: new Date() },
     });
     await item.save();
     ancoraPassaggio(item._id, item.passaggiProprieta.at(-1)._id);
@@ -1474,6 +1437,7 @@ export async function associaNfc(req, res, next) {
   try {
     const item = await Item.findById(req.dati.params.id);
     if (!item) return nonTrovato(res);
+    if (item.stato === "archiviato") return archiviato(res);
 
     let uid;
     let contatore = null;
@@ -1525,7 +1489,8 @@ const ancoraggioPubblico = (a) => (a ? { stato: a.stato, txHash: a.txHash ?? nul
 
 async function certificato(item) {
   const integrita = await verificaIntegrita(item);
-  const autentico = !["manomesso", "non_registrato"].includes(integrita.stato);
+  // Autentico solo se TUTTO coincide con la blockchain (gli stati di attesa non bastano)
+  const autentico = integrita.stato === "verificato";
   return {
     capo: {
       tagId: item.tagId,
@@ -1682,16 +1647,21 @@ export async function autentica(req, res, next) {
   if (!intestazione.startsWith("Bearer ")) {
     return res.status(401).json({ errore: "Accesso richiesto: effettua il login." });
   }
+  let payload;
   try {
-    const payload = jwt.verify(intestazione.slice(7), jwtSecret());
+    payload = jwt.verify(intestazione.slice(7), jwtSecret());
+  } catch {
+    return res.status(401).json({ errore: "Sessione scaduta o non valida: effettua di nuovo il login." });
+  }
+  try {
     const utente = await User.findById(payload.sub).lean();
     if (!utente || !utente.attivo) {
       return res.status(401).json({ errore: "Account non valido o disattivato." });
     }
     req.utente = { id: String(utente._id), nome: utente.nome, email: utente.email, ruolo: utente.ruolo };
     next();
-  } catch {
-    return res.status(401).json({ errore: "Sessione scaduta o non valida: effettua di nuovo il login." });
+  } catch (err) {
+    next(err); // database non raggiungibile: errore del server, non login scaduto
   }
 }
 
@@ -1718,7 +1688,12 @@ export function notFound(req, res) {
 export function errorHandler(err, req, res, next) {
   // Indice UNIQUE violato (es. due richieste simultanee con lo stesso tagId)
   if (err.code === 11000) {
-    return res.status(409).json({ errore: "Questo tag risulta già associato a un altro capo." });
+    const campo = Object.keys(err.keyPattern ?? err.keyValue ?? {})[0];
+    const messaggi = {
+      tagId: "Questo tag risulta già associato a un altro capo.",
+      email: "Esiste già un account con questa email.",
+    };
+    return res.status(409).json({ errore: messaggi[campo] ?? (campo ? "Valore già presente." : messaggi.tagId) });
   }
   if (err.name === "CastError") {
     return res.status(400).json({ errore: "ID del capo non valido." });
@@ -1976,6 +1951,7 @@ export default mongoose.model("User", userSchema);
     "passaggi": "node scripts/passaggi.js",
     "misura-tempi": "node scripts/misura-tempi.js",
     "crea-admin": "node scripts/crea-admin.js",
+    "popola-demo": "node scripts/popola-demo.js",
     "migra": "node scripts/migra-ancoraggi.js"
   },
   "dependencies": {
@@ -2652,12 +2628,373 @@ console.log(falliti === 0 ? colore.verde("\nTUTTI I CONTROLLI SUPERATI") : color
 process.exit(falliti === 0 ? 0 : 1);
 ```
 
+## `backend/scripts/passaggi.ps1`
+
+```powershell
+<#
+  passaggi.ps1 - Passaggi 1-8 in PowerShell (per il PC Windows), dalla cartella backend.
+  Stessi controlli di "npm run passaggi" (versione Node, consigliata anche su Windows).
+
+  Uso (server avviato con "npm run dev"):
+    Set-ExecutionPolicy -Scope Process Bypass
+    .\scripts\passaggi.ps1 -Email admin@esempio.it
+    .\scripts\passaggi.ps1 -Email admin@esempio.it -Passaggio 7
+#>
+param(
+    [Parameter(Mandatory = $true)][string]$Email,
+    [int]$Passaggio = 0,
+    [string]$BaseUrl = "http://localhost:5001/api",
+    [string]$TagId = "NFC-001",
+    [string]$Password = ""   # se vuoto viene chiesta in modo nascosto
+)
+
+$ErrorActionPreference = "Stop"
+$script:Falliti = 0
+$script:Token = $null
+
+function Invoke-Api {
+    param([string]$Method, [string]$Path, $Body = $null, [switch]$Anonimo)
+    $params = @{ Method = $Method; Uri = "$BaseUrl$Path"; ContentType = "application/json; charset=utf-8" }
+    if ($script:Token -and -not $Anonimo) { $params.Headers = @{ Authorization = "Bearer $($script:Token)" } }
+    if ($null -ne $Body) { $params.Body = [System.Text.Encoding]::UTF8.GetBytes(($Body | ConvertTo-Json -Depth 10)) }
+    Invoke-RestMethod @params
+}
+
+function Get-StatusCode($ErrorRecord) {
+    try { return [int]$ErrorRecord.Exception.Response.StatusCode.value__ } catch { return $null }
+}
+
+function Titolo([int]$n, [string]$testo) { Write-Host ""; Write-Host ("=== PASSAGGIO {0} - {1} ===" -f $n, $testo) -ForegroundColor Cyan }
+
+function Verifica([bool]$condizione, [string]$messaggio) {
+    if ($condizione) { Write-Host "  [OK]   $messaggio" -ForegroundColor Green }
+    else { Write-Host "  [FAIL] $messaggio" -ForegroundColor Red; $script:Falliti++ }
+}
+
+function Get-IdCapo { (Invoke-Api GET "/items/tag/$TagId")._id }
+
+function Passaggio1 {
+    Titolo 1 "Health check del server"
+    $r = Invoke-Api GET "/health"
+    Verifica ($r.stato -eq "online") "Server attivo (blockchain: $($r.blockchain))"
+}
+
+function Passaggio2 {
+    Titolo 2 "Creazione identita digitale del capo + associazione tag $TagId"
+    try { $esistente = Invoke-Api GET "/items/tag/$TagId" } catch { $esistente = $null }
+    if ($esistente) { Write-Host "  [INFO] Il capo con $TagId esiste gia: creazione saltata" -ForegroundColor Yellow; return }
+    $body = @{ brand = "Gucci"; codiceModello = "GG-2024"; materialiOriginari = "Pelle e cotone"; filieraProvenienza = "Italia"; categoria = "giacca"; tagId = $TagId }
+    $r = Invoke-Api POST "/items" $body
+    Verifica ($r.tagId -eq $TagId) "Capo creato: id $($r._id)"
+}
+
+function Passaggio3 {
+    Titolo 3 "Registrazione evento di rigenerazione"
+    $body = @{ tipo = "upcycling"; descrizione = "Rifoderatura interna e sostituzione bottoni"; materialiNuovi = "Cotone riciclato certificato"; operatore = "Laboratorio Bari" }
+    $r = Invoke-Api POST "/items/$(Get-IdCapo)/eventi" $body
+    Verifica (@($r.storicoRigenerazione).Count -ge 1) "Evento registrato, eventi totali: $(@($r.storicoRigenerazione).Count)"
+}
+
+function Passaggio4 {
+    Titolo 4 "Lettura del singolo capo per ID"
+    $r = Invoke-Api GET "/items/$(Get-IdCapo)"
+    Verifica ($r.tagId -eq $TagId) "Dettaglio letto: $($r.brand) $($r.codiceModello)"
+}
+
+function Passaggio5 {
+    Titolo 5 "Passaggio di proprieta"
+    $r = Invoke-Api POST "/items/$(Get-IdCapo)/proprieta" @{ proprietario = "Maria Rossi" }
+    Verifica (@($r.passaggiProprieta).Count -ge 1) "Catena di $(@($r.passaggiProprieta).Count) proprietari"
+}
+
+function Passaggio6 {
+    Titolo 6 "Verifica pubblica (senza login)"
+    $r = Invoke-Api GET "/verify/$TagId" -Anonimo
+    Verifica ($null -ne $r.certificatoAutenticita) "Certificato ricevuto"
+    $nomi = (@($r.capo.passaggiProprieta) | ForEach-Object proprietario) -join " -> "
+    Verifica (-not (($r | ConvertTo-Json -Depth 10) -match "Rossi")) "Nomi minimizzati (GDPR): $nomi"
+}
+
+function Passaggio7 {
+    Titolo 7 "Anti-replay: rifiuto del tag duplicato $TagId"
+    $codice = $null
+    try { Invoke-Api POST "/items" @{ brand = "Prada"; codiceModello = "PR-999"; materialiOriginari = "Nylon"; tagId = $TagId } | Out-Null } catch { $codice = Get-StatusCode $_ }
+    Verifica ($codice -eq 409) "Tag duplicato rifiutato: HTTP $codice (atteso 409)"
+    $codice = $null
+    try { Invoke-Api GET "/verify/TAG-INESISTENTE-999" -Anonimo | Out-Null } catch { $codice = Get-StatusCode $_ }
+    Verifica ($codice -eq 404) "Tag mai registrato: HTTP $codice (atteso 404)"
+    $codice = $null
+    try { Invoke-Api POST "/items" @{ brand = "X"; codiceModello = "Y"; materialiOriginari = "Z"; tagId = "NFC-XYZ" } -Anonimo | Out-Null } catch { $codice = Get-StatusCode $_ }
+    Verifica ($codice -eq 401) "Creazione senza login rifiutata: HTTP $codice (atteso 401)"
+}
+
+function Passaggio8 {
+    Titolo 8 "Verifica finale completa dei dati"
+    for ($i = 0; $i -lt 20; $i++) {
+        $r = Invoke-Api GET "/verify/$TagId" -Anonimo
+        if ($r.certificatoAutenticita.integrita.stato -ne "in_attesa") { break }
+        Start-Sleep -Milliseconds 500
+    }
+    $c = $r.certificatoAutenticita
+    Verifica ($c.autentico -eq $true) "autentico = $($c.autentico)"
+    Verifica ($c.integrita.stato -eq "verificato") "integrita = $($c.integrita.stato) ($($c.integrita.messaggio))"
+    if ($c.integrita.stato -in @("incompleto", "non_registrato")) { Write-Host "  [INFO] Esegui 'npm run migra' e ripeti il passaggio 8" -ForegroundColor Yellow }
+    Verifica (@($r.capo.storicoRigenerazione).Count -ge 1) "Eventi di rigenerazione: $(@($r.capo.storicoRigenerazione).Count)"
+    Verifica (@($r.capo.passaggiProprieta).Count -ge 1) "Passaggi di proprieta: $(@($r.capo.passaggiProprieta).Count)"
+}
+
+if ($Password) { $password = $Password } else {
+    $sicura = Read-Host "Password per $Email" -AsSecureString
+    $password = [System.Net.NetworkCredential]::new("", $sicura).Password
+}
+try {
+    $login = Invoke-Api POST "/auth/login" @{ email = $Email; password = $password } -Anonimo
+    $script:Token = $login.token
+    Write-Host "Accesso effettuato come $($login.utente.nome) ($($login.utente.ruolo))" -ForegroundColor Green
+} catch {
+    Write-Host "Login fallito: HTTP $(Get-StatusCode $_)" -ForegroundColor Red; exit 1
+}
+
+$daEseguire = if ($Passaggio -gt 0) { @($Passaggio) } else { 1..8 }
+foreach ($n in $daEseguire) {
+    try { & "Passaggio$n" } catch { Write-Host "  [ERRORE] $($_.Exception.Message)" -ForegroundColor Red; $script:Falliti++ }
+}
+Write-Host ""
+if ($script:Falliti -eq 0) { Write-Host "TUTTI I CONTROLLI SUPERATI" -ForegroundColor Green } else { Write-Host "CONTROLLI FALLITI: $script:Falliti" -ForegroundColor Red; exit 1 }
+```
+
+## `backend/scripts/popola-demo.js`
+
+```javascript
+/*
+ * CAPI DIMOSTRATIVI — per provare la piattaforma (sul Mac o sul sito online: stesso database).
+ * Uso:  npm run popola-demo                       (dalla cartella principale o da backend/)
+ *       npm run popola-demo -- --email tua@email.it
+ * I capi vengono creati con le stesse API della web app (validazione, ancoraggio
+ * sulla blockchain simulata, controllo di integrità) a nome del primo amministratore
+ * attivo. I capi già presenti vengono saltati: lo script si può rilanciare.
+ * DEMO-MANOMESSO viene poi alterato direttamente nel database, come farebbe chi
+ * volesse falsificare lo storico: la verifica pubblica deve segnalarlo.
+ * Il chip NFC di prova (vettore ufficiale NXP AN12196) viene associato a DEMO-BORSA-01:
+ * il suo link vale UNA volta (anti-replay); rilanciando lo script il contatore si azzera.
+ * I marchi sono inventati: nessun riferimento a brand reali.
+ */
+import "dotenv/config";
+import jwt from "jsonwebtoken";
+import mongoose from "mongoose";
+import { connectDB, spiegaErroreMongo } from "../config/db.js";
+import { jwtSecret } from "../config/security.js";
+import { creaApp } from "../app.js";
+import { attendiAncoraggi } from "../services/anchorService.js";
+import User from "../models/User.js";
+import Item from "../models/Item.js";
+import { colore, chiamata } from "./_cli.js";
+
+// Con la blockchain simulata si usa il registro condiviso con il sito online (collezione del database)
+if ((process.env.BLOCKCHAIN_MODE ?? "mock") === "mock") process.env.MOCK_LEDGER_STORE = "mongo";
+
+const argomento = (nome) => {
+  const i = process.argv.indexOf(`--${nome}`);
+  return i > -1 ? process.argv[i + 1] : undefined;
+};
+const SITO = (process.env.SITO_PUBBLICO ?? "https://regen-luxury.onrender.com").replace(/\/+$/, "");
+
+const CAPI = [
+  {
+    capo: {
+      tagId: "DEMO-JEANS-01",
+      brand: "Atelier Moretti",
+      codiceModello: "Jeans cinque tasche MR-501",
+      materialiOriginari: "Denim di cotone 100%",
+      filieraProvenienza: "Italia (Puglia)",
+      categoria: "jeans",
+      materialePrincipale: "denim",
+      annoProduzione: 2019,
+      proprietarioIniziale: "Boutique Vintage Bari",
+    },
+    eventi: [
+      { tipo: "riparazione", descrizione: "Rammendo invisibile al ginocchio e rinforzo delle tasche posteriori", materialiNuovi: "Filato di cotone riciclato", operatore: "Sartoria Bari Vecchia" },
+      { tipo: "upcycling", descrizione: "Orlo accorciato e bottoni sostituiti con bottoni in ottone di recupero", materialiNuovi: "Ottone recuperato", operatore: "Laboratorio Rinascita" },
+    ],
+    proprietari: ["Giulia Conti"],
+  },
+  {
+    capo: {
+      tagId: "DEMO-TSHIRT-01",
+      brand: "Casa Vellani",
+      codiceModello: "T-shirt girocollo CV-12",
+      materialiOriginari: "Jersey di cotone biologico",
+      filieraProvenienza: "Italia (Toscana)",
+      categoria: "t-shirt",
+      materialePrincipale: "cotone",
+      annoProduzione: 2021,
+    },
+    eventi: [{ tipo: "sostituzione_parti", descrizione: "Colletto sostituito con una costina nuova", materialiNuovi: "Costina in cotone biologico", operatore: "Sartoria Bari Vecchia" }],
+    proprietari: ["Marco Esposito"],
+  },
+  {
+    capo: {
+      tagId: "DEMO-BORSA-01",
+      brand: "Maison Aurelia",
+      codiceModello: "Borsa a mano AU-Bauletto",
+      materialiOriginari: "Pelle di vitello conciata al vegetale, fodera in cotone",
+      filieraProvenienza: "Italia (Firenze)",
+      categoria: "borsa",
+      materialePrincipale: "pelle",
+      annoProduzione: 2015,
+      proprietarioIniziale: "Second Hand Luxury Milano",
+    },
+    eventi: [
+      { tipo: "sostituzione_parti", descrizione: "Nuova tracolla in pelle e moschettoni in ottone", materialiNuovi: "Pelle conciata al vegetale, ottone", operatore: "Pelletteria Artigiana Lecce" },
+      { tipo: "riparazione", descrizione: "Ritocco del colore sugli angoli e fodera interna rifatta", materialiNuovi: "Tinture all'acqua, cotone", operatore: "Pelletteria Artigiana Lecce" },
+    ],
+    proprietari: ["Laura Ricci", "Francesca De Santis"],
+  },
+  {
+    capo: {
+      tagId: "DEMO-CAPPOTTO-01",
+      brand: "Sartoria Levante",
+      codiceModello: "Cappotto doppiopetto SL-1998",
+      materialiOriginari: "Lana vergine e cashmere",
+      filieraProvenienza: "Italia (Biella)",
+      categoria: "cappotto",
+      materialePrincipale: "lana",
+      annoProduzione: 1998,
+    },
+    eventi: [{ tipo: "upcycling", descrizione: "Trasformato da cappotto lungo a giacca corta; fodera rifatta", materialiNuovi: "Fodera in viscosa", operatore: "Laboratorio Rinascita" }],
+    proprietari: [],
+  },
+  {
+    capo: {
+      tagId: "DEMO-MANOMESSO",
+      brand: "Maison Aurelia",
+      codiceModello: "Giacca in pelle AU-Biker",
+      materialiOriginari: "Pelle di agnello, fodera in viscosa",
+      filieraProvenienza: "Italia (Firenze)",
+      categoria: "giacca",
+      materialePrincipale: "pelle",
+      annoProduzione: 2017,
+    },
+    eventi: [{ tipo: "riparazione", descrizione: "Sostituzione della zip centrale", materialiNuovi: "Zip in metallo", operatore: "Pelletteria Artigiana Lecce" }],
+    proprietari: ["Paolo Bianchi"],
+    manomissione: "Pelle interamente sostituita con pelle nuova certificata (intervento mai registrato)",
+  },
+];
+const TAG_FALSO = "DEMO-FALSO-99"; // non esiste: simula un capo contraffatto
+
+// Chip NTAG 424 DNA di prova: messaggio SUN del documento NXP AN12196 (chiavi di fabbrica, contatore 61)
+const CHIP_DEMO = { tagId: "DEMO-BORSA-01", uid: "04DE5F1EACC040", e: "EF963FF7828658A599F3041510671E88", c: "94EED9EE65337086" };
+
+const RISULTATI = {
+  verificato: colore.verde("Autentico"),
+  manomesso: colore.rosso("Manomesso"),
+  in_attesa: colore.giallo("In registrazione"),
+  incompleto: colore.giallo("Non conclusiva"),
+  non_registrato: colore.rosso("Non registrato"),
+};
+
+try {
+  await connectDB();
+} catch (err) {
+  console.error(colore.rosso(`Database non raggiungibile: ${spiegaErroreMongo(err)}`));
+  process.exit(1);
+}
+
+const email = argomento("email")?.trim().toLowerCase();
+const autore = await User.findOne(email ? { email } : { ruolo: "admin", attivo: true }).sort({ createdAt: 1 });
+if (!autore) {
+  console.error(colore.rosso(email ? `Nessun account con email ${email}.` : "Nessun amministratore: crealo prima con npm run crea-admin"));
+  await mongoose.disconnect();
+  process.exit(1);
+}
+console.log(`Capi creati a nome di ${autore.nome} (${autore.ruolo})`);
+
+// Stesse API della web app, su un server temporaneo in questo processo
+const server = creaApp().listen(0, "127.0.0.1");
+await new Promise((r) => server.once("listening", r));
+const base = `http://127.0.0.1:${server.address().port}/api`;
+const token = jwt.sign({ sub: String(autore._id), ruolo: autore.ruolo }, jwtSecret(), { expiresIn: "15m" });
+const api = async (metodo, percorso, corpo) => {
+  const r = await chiamata(base, metodo, percorso, { corpo, token });
+  if (r.status >= 400 && !(metodo === "GET" && r.status === 404)) {
+    throw new Error(`${metodo} ${percorso}: HTTP ${r.status} ${r.dati?.errore ?? ""}`);
+  }
+  return r;
+};
+
+let errori = 0;
+const creati = new Set();
+for (const { capo, eventi, proprietari } of CAPI) {
+  try {
+    if ((await api("GET", `/items/tag/${capo.tagId}`)).status === 200) {
+      console.log(colore.giallo(`  = ${capo.tagId} esiste già: saltato`));
+      continue;
+    }
+    const { dati } = await api("POST", "/items", capo);
+    for (const evento of eventi) await api("POST", `/items/${dati._id}/eventi`, evento);
+    for (const proprietario of proprietari) await api("POST", `/items/${dati._id}/proprieta`, { proprietario });
+    creati.add(capo.tagId);
+    console.log(colore.verde(`  + ${capo.tagId} creato (${capo.brand}, ${eventi.length} ${eventi.length === 1 ? "intervento" : "interventi"})`));
+  } catch (err) {
+    errori++;
+    console.error(colore.rosso(`  ✗ ${capo.tagId}: ${err.message}`));
+  }
+}
+
+console.log("Attendo le conferme della blockchain…");
+await attendiAncoraggi();
+
+// Chip NFC di prova: associato una volta sola; il contatore anti-replay viene azzerato a ogni esecuzione
+let linkNfc = null;
+try {
+  const altro = await Item.findOne({ "nfc.uid": CHIP_DEMO.uid }).lean();
+  const borsa = await Item.findOne({ tagId: CHIP_DEMO.tagId }).lean();
+  if (altro && altro.tagId !== CHIP_DEMO.tagId) {
+    console.log(colore.giallo(`  = chip NFC di prova già associato a ${altro.tagId}: lasciato com'è`));
+  } else if (borsa) {
+    if (!altro) await api("POST", `/items/${borsa._id}/nfc`, { uid: CHIP_DEMO.uid });
+    await Item.updateOne({ _id: borsa._id }, { $set: { "nfc.ultimoContatore": null }, $unset: { "nfc.ultimaLettura": "" } });
+    linkNfc = `${SITO}/s?e=${CHIP_DEMO.e}&c=${CHIP_DEMO.c}`;
+    console.log(colore.verde(`  + chip NFC di prova pronto su ${CHIP_DEMO.tagId} (link valido una volta)`));
+  }
+} catch (err) {
+  errori++;
+  console.error(colore.rosso(`  ✗ chip NFC di prova: ${err.message}`));
+}
+
+// Manomissione simulata: modifica diretta nel database, senza passare dalle API
+for (const { capo, manomissione } of CAPI) {
+  if (!manomissione || !creati.has(capo.tagId)) continue;
+  const item = await Item.findOne({ tagId: capo.tagId });
+  item.storicoRigenerazione[0].descrizione = manomissione;
+  await item.save();
+  console.log(colore.giallo(`  ! ${capo.tagId}: storico alterato direttamente nel database (prova di manomissione)`));
+}
+
+console.log(`\n${"Codice tag".padEnd(18)} ${"Capo".padEnd(34)} Esito della verifica`);
+for (const { capo } of CAPI) {
+  const r = await api("GET", `/verify/${capo.tagId}`);
+  const stato = r.dati?.certificatoAutenticita?.integrita?.stato;
+  const impatto = r.dati?.impattoAmbientale?.disponibile ? ` · ${r.dati.impattoAmbientale.co2RisparmiataKg} kg CO₂e evitati` : "";
+  console.log(`${capo.tagId.padEnd(18)} ${`${capo.brand} ${capo.categoria}`.padEnd(34)} ${RISULTATI[stato] ?? stato}${impatto}`);
+}
+const falso = await api("GET", `/verify/${TAG_FALSO}`);
+console.log(`${TAG_FALSO.padEnd(18)} ${"(nessun capo)".padEnd(34)} ${falso.status === 404 ? colore.rosso("Non trovato: possibile contraffazione") : falso.status}`);
+
+console.log(`\nProva sul sito: ${SITO}  →  campo "Hai il codice del tag?"  oppure  ${SITO}/v/DEMO-JEANS-01`);
+if (linkNfc) console.log(`Chip NFC di prova (vale una volta, poi "Link già utilizzato"): ${linkNfc}`);
+server.close();
+await mongoose.disconnect();
+process.exit(errori ? 1 : 0);
+```
+
 ## `backend/server.js`
 
 ```javascript
 import "dotenv/config"; // carica le variabili d'ambiente dal file .env (deve restare il primo import)
 import { connectDB, spiegaErroreMongo } from "./config/db.js";
 import { creaApp } from "./app.js";
+import { attendiAncoraggi } from "./services/anchorService.js";
 
 const PORT = process.env.PORT || 5001;
 
@@ -2675,6 +3012,17 @@ try {
     );
     process.exit(1);
   });
+
+  // Spegnimento ordinato (Render lo chiede a ogni nuovo deploy o sospensione): si attendono
+  // le scritture blockchain in corso, così nessun capo resta "in attesa" per sempre.
+  const spegni = async (segnale) => {
+    console.log(`${segnale}: chiusura del server, attendo le scritture blockchain in corso…`);
+    server.close();
+    await Promise.race([attendiAncoraggi(), new Promise((r) => setTimeout(r, 20_000))]);
+    process.exit(0);
+  };
+  process.once("SIGTERM", () => spegni("SIGTERM"));
+  process.once("SIGINT", () => spegni("SIGINT"));
 } catch (err) {
   console.error("Errore di avvio:", err.message);
   const consiglio = spiegaErroreMongo(err);
@@ -2714,7 +3062,10 @@ function inCoda(itemId, operazione) {
   return prossima;
 }
 
-// Attende che tutte le operazioni in coda siano concluse (usato da test e script)
+// true se questo server ha una scrittura in corso per il capo (dato in memoria, non falsificabile dal database)
+export const inLavorazione = (itemId) => code.has(String(itemId));
+
+// Attende che tutte le operazioni in coda siano concluse (usato da test, script e spegnimento del server)
 export async function attendiAncoraggi() {
   while (code.size > 0) await Promise.allSettled([...code.values()]);
 }
@@ -2747,6 +3098,9 @@ export function ancoraDatiCapo(itemId, { nuovo = false } = {}) {
     }
     const aggiornato = await Item.findById(itemId);
     if (!aggiornato) return;
+    // Nel frattempo i dati sono stati modificati di nuovo: la loro scrittura è già in coda,
+    // quindi non si segna "confermato" un'impronta ormai superata.
+    if (improntaCapo(aggiornato) !== hash && aggiornato.registrazione?.stato === "in_attesa") return;
     aggiornato.registrazione = esito;
     if (esito.stato === "confermato" && !aggiornato.blockchainTxHash) aggiornato.blockchainTxHash = esito.txHash;
     await aggiornato.save();
@@ -2762,7 +3116,14 @@ function ancoraVoce(itemId, voceId, { campo, improntaDi, invia }) {
     const hash = improntaDi(voce);
     let esito;
     try {
-      esito = confermato(hash, await invia(chain, { tagId: item.tagId, hash }));
+      // Già presente on-chain (es. conferma persa per un riavvio): non si scrive due volte,
+      // altrimenti il controllo di integrità troverebbe una voce in più sulla blockchain.
+      const registro = await chain.leggiRegistro(item.tagId);
+      if (registro.storico.includes(hash)) {
+        esito = { ...(voce.ancoraggio?.toObject?.() ?? {}), stato: "confermato", hash, errore: undefined, aggiornatoIl: new Date() };
+      } else {
+        esito = confermato(hash, await invia(chain, { tagId: item.tagId, hash }));
+      }
     } catch (err) {
       esito = fallito(hash, err);
     }
@@ -2847,11 +3208,11 @@ export function reimpostaBlockchain() {
  *  - lo storico accetta solo aggiunte (nessuna cancellazione);
  *  - il registro sopravvive ai riavvii.
  * Dove vive il registro (MOCK_LEDGER_STORE):
- *  - "file" (predefinito): file JSON separato dal database (MOCK_LEDGER_FILE);
- *  - "mongo": collezione "registro_simulato" dello stesso cluster. Serve per la
- *    demo online gratuita (su Render i file si cancellano a ogni riavvio) e per
- *    condividere lo stesso registro tra il Mac e il sito online. È meno
- *    indipendente dal database del file: in produzione si usa Polygon.
+ *  - "mongo" (predefinito): collezione "registro_simulato" dello stesso cluster.
+ *    Serve per la demo online gratuita (su Render i file si cancellano a ogni
+ *    riavvio) e per condividere lo stesso registro tra il Mac e il sito online.
+ *    È meno indipendente dal database del file: in produzione si usa Polygon;
+ *  - "file": file JSON separato dal database (MOCK_LEDGER_FILE), usato dai test.
  */
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
@@ -2861,7 +3222,7 @@ import { improntaTag } from "../hashService.js";
 
 const RETE = "mock-polygon";
 const file = () => path.resolve(process.env.MOCK_LEDGER_FILE ?? "./data/mock-ledger.json");
-const suMongo = () => (process.env.MOCK_LEDGER_STORE ?? "file").toLowerCase() === "mongo";
+const suMongo = () => (process.env.MOCK_LEDGER_STORE || "mongo").toLowerCase() === "mongo";
 const latenza = () => Number(process.env.MOCK_CHAIN_LATENCY_MS ?? 300);
 const attendi = (ms) => new Promise((r) => setTimeout(r, ms));
 const vuoto = () => ({ blocco: 1_000_000, prossimoToken: 1, capi: {} });
@@ -2915,10 +3276,12 @@ async function salvaConVersione(modifica) {
 let fileUnito = false;
 async function unisciFileLocale() {
   if (fileUnito) return;
-  fileUnito = true;
   const locale = await leggiFile().catch(() => vuoto());
   const voci = Object.entries(locale.capi ?? {});
-  if (voci.length === 0) return;
+  if (voci.length === 0) {
+    fileUnito = true;
+    return;
+  }
   let importati = 0;
   await salvaConVersione((stato) => {
     const mancanti = voci.filter(([chiave]) => !stato.capi[chiave]);
@@ -2934,6 +3297,7 @@ async function unisciFileLocale() {
     importati = mancanti.length;
     return true;
   });
+  fileUnito = true; // solo dopo un'importazione riuscita
   if (importati) console.log(`Registro simulato: ${importati} capi importati dal file locale nel database`);
 }
 
@@ -3044,18 +3408,44 @@ async function creaFirmatario() {
 }
 
 let contrattoPromise;
+let firmatario;
 function contratto() {
   if (!contrattoPromise) {
     if (!process.env.CONTRACT_ADDRESS) throw new Error("CONTRACT_ADDRESS mancante nel file .env");
-    contrattoPromise = creaFirmatario().then((firmatario) => new ethers.Contract(process.env.CONTRACT_ADDRESS, abi, firmatario));
+    contrattoPromise = creaFirmatario()
+      .then((f) => {
+        firmatario = f;
+        return new ethers.Contract(process.env.CONTRACT_ADDRESS, abi, f);
+      })
+      .catch((err) => {
+        contrattoPromise = undefined; // es. nodo non ancora avviato: si riprova alla prossima richiesta
+        throw err;
+      });
   }
   return contrattoPromise;
 }
 
-async function invia(chiamata) {
-  const tx = await chiamata;
-  const ricevuta = await tx.wait();
-  return { txHash: ricevuta.hash, blocco: ricevuta.blockNumber, rete: RETE, gasUsato: Number(ricevuta.gasUsed) };
+// Le transazioni partono una alla volta: con un solo firmatario i nonce restano in
+// sequenza. Se un invio fallisce (revert, errore della rete) il NonceManager viene
+// riallineato con la rete, altrimenti resterebbe un "buco" e le transazioni
+// successive non verrebbero mai confermate. Un solo server deve usare la stessa chiave.
+const ATTESA_MAX_MS = Number(process.env.TX_TIMEOUT_MS ?? 120_000);
+let codaInvii = Promise.resolve();
+
+function invia(prepara) {
+  const esegui = async () => {
+    try {
+      const tx = await prepara();
+      const ricevuta = await tx.wait(1, ATTESA_MAX_MS);
+      return { txHash: ricevuta.hash, blocco: ricevuta.blockNumber, rete: RETE, gasUsato: Number(ricevuta.gasUsed) };
+    } catch (err) {
+      firmatario?.reset?.();
+      throw err;
+    }
+  };
+  const risultato = codaInvii.then(esegui, esegui);
+  codaInvii = risultato.catch(() => {});
+  return risultato;
 }
 
 async function tokenDi(c, tagId) {
@@ -3071,22 +3461,22 @@ export default {
 
   async registraCapo({ tagId, dataHash }) {
     const c = await contratto();
-    return invia(c.registerItem(await c.runner.getAddress(), improntaTag(tagId), dataHash));
+    return invia(async () => c.registerItem(await c.runner.getAddress(), improntaTag(tagId), dataHash));
   },
 
   async aggiornaDatiCapo({ tagId, dataHash }) {
     const c = await contratto();
-    return invia(c.updateDataHash(await tokenDi(c, tagId), dataHash));
+    return invia(async () => c.updateDataHash(await tokenDi(c, tagId), dataHash));
   },
 
   async registraEvento({ tagId, hash }) {
     const c = await contratto();
-    return invia(c.recordRegeneration(await tokenDi(c, tagId), hash));
+    return invia(async () => c.recordRegeneration(await tokenDi(c, tagId), hash));
   },
 
   async registraPassaggio({ tagId, hash }) {
     const c = await contratto();
-    return invia(c.recordTransfer(await tokenDi(c, tagId), hash));
+    return invia(async () => c.recordTransfer(await tokenDi(c, tagId), hash));
   },
 
   async leggiRegistro(tagId) {
@@ -3240,32 +3630,51 @@ export const categorieConStima = () => Object.keys(tabella.categorie);
  * nel database, l'impronta ricalcolata non coincide e il capo risulta
  * "manomesso": la blockchain non impedisce la modifica del database, ma la
  * rende RILEVABILE.
+ *
+ * Solo lo stato "verificato" certifica l'autenticità. Gli stati di attesa o di
+ * scrittura fallita sono scritti nel database, quindi potrebbero essere falsificati
+ * insieme ai dati: per questo non producono mai "autentico" e un'attesa è
+ * considerata credibile solo se la scrittura è in corso su questo server oppure
+ * è iniziata da poco (FINESTRA_ATTESA_MS). Altrimenti la verifica è "non conclusiva".
  */
 import { blockchain } from "./blockchain/index.js";
+import { inLavorazione } from "./anchorService.js";
 import { improntaCapo, improntaEvento, improntaPassaggio } from "./hashService.js";
+
+const finestraAttesa = () => Number(process.env.FINESTRA_ATTESA_MS ?? 10 * 60_000);
 
 export const ESITI = {
   verificato: "Tutti i dati coincidono con quelli ancorati sulla blockchain",
-  in_attesa: "Alcune scritture sulla blockchain sono in attesa di conferma",
-  incompleto: "Alcuni dati non sono ancora stati ancorati sulla blockchain",
+  in_attesa: "Registrazione sulla blockchain in corso: la verifica sarà completa tra pochi istanti",
+  incompleto: "Verifica non conclusiva: alcuni dati non risultano ancorati sulla blockchain",
   manomesso: "I dati non coincidono con quelli ancorati: possibile manomissione",
   non_registrato: "Il capo non risulta registrato sulla blockchain",
 };
 
+function attesaCredibile(item, ancoraggio) {
+  if (ancoraggio?.stato !== "in_attesa") return false;
+  if (inLavorazione(item._id)) return true;
+  const riferimento = ancoraggio.aggiornatoIl ?? item.updatedAt;
+  return riferimento ? Date.now() - new Date(riferimento).getTime() < finestraAttesa() : false;
+}
+
 export async function verificaIntegrita(item) {
   const chain = await blockchain();
   const registro = await chain.leggiRegistro(item.tagId);
-  const registrazioneInAttesa = item.registrazione?.stato === "in_attesa";
+  const registrazione = item.registrazione;
 
   if (!registro.registrato) {
-    const stato = registrazioneInAttesa ? "in_attesa" : "non_registrato";
+    const stato = attesaCredibile(item, registrazione) ? "in_attesa" : "non_registrato";
     return { stato, messaggio: ESITI[stato], rete: chain.nome, datiCapo: stato, voci: null };
   }
 
   // 1) Dati identificativi del capo
-  const hashLocale = improntaCapo(item);
   let datiCapo = "verificati";
-  if (registro.dataHash !== hashLocale) datiCapo = registrazioneInAttesa ? "in_attesa" : "diversi";
+  if (registro.dataHash !== improntaCapo(item)) {
+    if (attesaCredibile(item, registrazione)) datiCapo = "in_attesa";
+    else if (["in_attesa", "fallito"].includes(registrazione?.stato)) datiCapo = "non_ancorati";
+    else datiCapo = "diversi"; // registrazione confermata ma dati diversi: manomissione
+  }
 
   // 2) Storico: ogni voce del database deve comparire on-chain (e viceversa)
   const disponibili = new Map();
@@ -3277,12 +3686,12 @@ export async function verificaIntegrita(item) {
     if (n > 0) {
       disponibili.set(hash, n - 1);
       voci.verificate += 1;
-    } else if (!voce.ancoraggio || voce.ancoraggio.stato === "fallito") {
-      voci.nonAncorate += 1;
-    } else if (voce.ancoraggio.stato === "in_attesa") {
+    } else if (attesaCredibile(item, voce.ancoraggio)) {
       voci.inAttesa += 1;
-    } else {
+    } else if (voce.ancoraggio?.stato === "confermato") {
       voci.alterate.push({ tipo, id: String(voce._id) }); // confermata ma impronta diversa
+    } else {
+      voci.nonAncorate += 1; // mai ancorata, scrittura fallita o attesa scaduta
     }
   };
   item.storicoRigenerazione.forEach((e) => controlla("evento", e, improntaEvento(e)));
@@ -3292,7 +3701,7 @@ export async function verificaIntegrita(item) {
   let stato = "verificato";
   if (datiCapo === "diversi" || voci.alterate.length > 0 || voci.soloOnChain > 0) stato = "manomesso";
   else if (datiCapo === "in_attesa" || voci.inAttesa > 0) stato = "in_attesa";
-  else if (voci.nonAncorate > 0) stato = "incompleto";
+  else if (datiCapo === "non_ancorati" || voci.nonAncorate > 0) stato = "incompleto";
 
   return { stato, messaggio: ESITI[stato], rete: chain.nome, tokenId: registro.tokenId, datiCapo, voci };
 }
@@ -3613,6 +4022,121 @@ export async function attendiAncoraggi() {
   const { attendiAncoraggi: attendi } = await import("../services/anchorService.js");
   await attendi();
 }
+```
+
+## `backend/test/integrita.test.js`
+
+```javascript
+// Controllo di integrità: gli stati salvati nel database non possono "coprire" una manomissione
+import { describe, it, before, after } from "node:test";
+import assert from "node:assert/strict";
+import request from "supertest";
+import { avviaAmbiente, creaUtenti, auth, capoDiProva, attendiAncoraggi } from "./helpers.js";
+
+describe("Integrità: stati di attesa falsificati, campi svuotabili, date (revisione)", () => {
+  let env, app, token, Item;
+  const vecchio = new Date(Date.now() - 60 * 60_000); // un'ora fa: fuori dalla finestra di attesa
+
+  before(async () => {
+    env = await avviaAmbiente();
+    app = env.app;
+    token = await creaUtenti(app);
+    ({ default: Item } = await import("../models/Item.js"));
+  });
+  after(() => env.chiudi());
+
+  async function capoConfermato(tagId) {
+    const r = await request(app).post("/api/items").set(auth(token.commerciante)).send(capoDiProva(tagId));
+    await request(app).post(`/api/items/${r.body._id}/eventi`).set(auth(token.artigiano)).send({ tipo: "riparazione", descrizione: "Cuciture" });
+    await attendiAncoraggi();
+    return r.body._id;
+  }
+  const verifica = async (tagId) => (await request(app).get(`/api/verify/${tagId}`)).body.certificatoAutenticita;
+
+  it("dati modificati + registrazione rimessa 'in_attesa' nel database: mai 'autentico'", async () => {
+    const id = await capoConfermato("INT-001");
+    await Item.collection.updateOne(
+      { _id: Item.castObject({ _id: id })._id },
+      { $set: { brand: "Marchio Falso", "registrazione.stato": "in_attesa", "registrazione.aggiornatoIl": vecchio, updatedAt: vecchio } }
+    );
+    const c = await verifica("INT-001");
+    assert.equal(c.autentico, false);
+    assert.notEqual(c.integrita.stato, "verificato");
+  });
+
+  it("evento falso aggiunto con ancoraggio 'fallito': verifica non conclusiva, non autentico", async () => {
+    const id = await capoConfermato("INT-002");
+    const item = await Item.findById(id);
+    item.storicoRigenerazione.push({ tipo: "upcycling", descrizione: "Intervento inventato", ancoraggio: { stato: "fallito", aggiornatoIl: vecchio } });
+    await item.save();
+    const c = await verifica("INT-002");
+    assert.equal(c.integrita.stato, "incompleto");
+    assert.equal(c.autentico, false);
+  });
+
+  it("capo contraffatto inserito direttamente nel database 'in_attesa' da tempo: non registrato", async () => {
+    await Item.collection.insertOne({
+      ...capoDiProva("INT-FALSO"),
+      stato: "attivo",
+      registrazione: { stato: "in_attesa", aggiornatoIl: vecchio },
+      storicoRigenerazione: [],
+      passaggiProprieta: [],
+      createdAt: vecchio,
+      updatedAt: vecchio,
+    });
+    const c = await verifica("INT-FALSO");
+    assert.equal(c.integrita.stato, "non_registrato");
+    assert.equal(c.autentico, false);
+  });
+
+  it("un capo appena creato è 'in registrazione' (non ancora autentico) e poi 'verificato'", async () => {
+    const r = await request(app).post("/api/items").set(auth(token.commerciante)).send(capoDiProva("INT-003"));
+    const subito = await verifica("INT-003");
+    assert.equal(subito.integrita.stato, "in_attesa");
+    assert.equal(subito.autentico, false);
+    await attendiAncoraggi();
+    const dopo = await verifica("INT-003");
+    assert.equal(dopo.integrita.stato, "verificato");
+    assert.equal(dopo.autentico, true);
+    assert.ok(r.body._id);
+  });
+
+  it("modifica: un campo facoltativo svuotato (null) viene rimosso e il capo resta verificato", async () => {
+    const r = await request(app)
+      .post("/api/items")
+      .set(auth(token.commerciante))
+      .send(capoDiProva("INT-004", { annoProduzione: 2010 }));
+    await attendiAncoraggi();
+    const m = await request(app).patch(`/api/items/${r.body._id}`).set(auth(token.commerciante)).send({ filieraProvenienza: null, annoProduzione: null });
+    assert.equal(m.status, 200);
+    assert.equal(m.body.filieraProvenienza, undefined);
+    assert.equal(m.body.annoProduzione, undefined);
+    await attendiAncoraggi();
+    assert.equal((await verifica("INT-004")).integrita.stato, "verificato");
+    // brand e codice restano obbligatori
+    const vuoto = await request(app).patch(`/api/items/${r.body._id}`).set(auth(token.commerciante)).send({ brand: null });
+    assert.equal(vuoto.status, 400);
+  });
+
+  it("evento con la data di adesso: accettato; data nel futuro: rifiutata", async () => {
+    const r = await request(app).post("/api/items").set(auth(token.commerciante)).send(capoDiProva("INT-005"));
+    const ora = await request(app).post(`/api/items/${r.body._id}/eventi`).set(auth(token.artigiano)).send({ tipo: "riparazione", descrizione: "Oggi", data: new Date().toISOString() });
+    assert.equal(ora.status, 200);
+    const futuro = await request(app)
+      .post(`/api/items/${r.body._id}/eventi`)
+      .set(auth(token.artigiano))
+      .send({ tipo: "riparazione", descrizione: "Domani", data: new Date(Date.now() + 86_400_000).toISOString() });
+    assert.equal(futuro.status, 400);
+  });
+
+  it("email duplicata: messaggio sull'account, non sul tag", async () => {
+    const primo = await request(app).post("/api/auth/utenti").set(auth(token.admin)).send({ nome: "A", email: "doppio@test.it", ruolo: "artigiano", password: "Password-lunga-1" });
+    assert.equal(primo.status, 201);
+    const secondo = await request(app).post("/api/auth/utenti").set(auth(token.admin)).send({ nome: "B", email: "doppio@test.it", ruolo: "artigiano", password: "Password-lunga-1" });
+    assert.equal(secondo.status, 409);
+    assert.match(secondo.body.errore, /account|email/i);
+  });
+});
 ```
 
 ## `backend/test/items.test.js`
@@ -4011,141 +4535,6 @@ describe("Verifica pubblica, integrità e limiti (punti 8, 10, 13)", () => {
 });
 ```
 
-## `backend/test-powershell/passaggi.ps1`
-
-```powershell
-<#
-  passaggi.ps1 - Passaggi 1-8 in PowerShell (per il PC Windows).
-  Stessi controlli di "npm run passaggi" (versione Node, consigliata anche su Windows).
-
-  Uso (server avviato con "npm run dev"):
-    Set-ExecutionPolicy -Scope Process Bypass
-    .\test-powershell\passaggi.ps1 -Email admin@esempio.it
-    .\test-powershell\passaggi.ps1 -Email admin@esempio.it -Passaggio 7
-#>
-param(
-    [Parameter(Mandatory = $true)][string]$Email,
-    [int]$Passaggio = 0,
-    [string]$BaseUrl = "http://localhost:5001/api",
-    [string]$TagId = "NFC-001",
-    [string]$Password = ""   # se vuoto viene chiesta in modo nascosto
-)
-
-$ErrorActionPreference = "Stop"
-$script:Falliti = 0
-$script:Token = $null
-
-function Invoke-Api {
-    param([string]$Method, [string]$Path, $Body = $null, [switch]$Anonimo)
-    $params = @{ Method = $Method; Uri = "$BaseUrl$Path"; ContentType = "application/json; charset=utf-8" }
-    if ($script:Token -and -not $Anonimo) { $params.Headers = @{ Authorization = "Bearer $($script:Token)" } }
-    if ($null -ne $Body) { $params.Body = [System.Text.Encoding]::UTF8.GetBytes(($Body | ConvertTo-Json -Depth 10)) }
-    Invoke-RestMethod @params
-}
-
-function Get-StatusCode($ErrorRecord) {
-    try { return [int]$ErrorRecord.Exception.Response.StatusCode.value__ } catch { return $null }
-}
-
-function Titolo([int]$n, [string]$testo) { Write-Host ""; Write-Host ("=== PASSAGGIO {0} - {1} ===" -f $n, $testo) -ForegroundColor Cyan }
-
-function Verifica([bool]$condizione, [string]$messaggio) {
-    if ($condizione) { Write-Host "  [OK]   $messaggio" -ForegroundColor Green }
-    else { Write-Host "  [FAIL] $messaggio" -ForegroundColor Red; $script:Falliti++ }
-}
-
-function Get-IdCapo { (Invoke-Api GET "/items/tag/$TagId")._id }
-
-function Passaggio1 {
-    Titolo 1 "Health check del server"
-    $r = Invoke-Api GET "/health"
-    Verifica ($r.stato -eq "online") "Server attivo (blockchain: $($r.blockchain))"
-}
-
-function Passaggio2 {
-    Titolo 2 "Creazione identita digitale del capo + associazione tag $TagId"
-    try { $esistente = Invoke-Api GET "/items/tag/$TagId" } catch { $esistente = $null }
-    if ($esistente) { Write-Host "  [INFO] Il capo con $TagId esiste gia: creazione saltata" -ForegroundColor Yellow; return }
-    $body = @{ brand = "Gucci"; codiceModello = "GG-2024"; materialiOriginari = "Pelle e cotone"; filieraProvenienza = "Italia"; categoria = "giacca"; tagId = $TagId }
-    $r = Invoke-Api POST "/items" $body
-    Verifica ($r.tagId -eq $TagId) "Capo creato: id $($r._id)"
-}
-
-function Passaggio3 {
-    Titolo 3 "Registrazione evento di rigenerazione"
-    $body = @{ tipo = "upcycling"; descrizione = "Rifoderatura interna e sostituzione bottoni"; materialiNuovi = "Cotone riciclato certificato"; operatore = "Laboratorio Bari" }
-    $r = Invoke-Api POST "/items/$(Get-IdCapo)/eventi" $body
-    Verifica (@($r.storicoRigenerazione).Count -ge 1) "Evento registrato, eventi totali: $(@($r.storicoRigenerazione).Count)"
-}
-
-function Passaggio4 {
-    Titolo 4 "Lettura del singolo capo per ID"
-    $r = Invoke-Api GET "/items/$(Get-IdCapo)"
-    Verifica ($r.tagId -eq $TagId) "Dettaglio letto: $($r.brand) $($r.codiceModello)"
-}
-
-function Passaggio5 {
-    Titolo 5 "Passaggio di proprieta"
-    $r = Invoke-Api POST "/items/$(Get-IdCapo)/proprieta" @{ proprietario = "Maria Rossi" }
-    Verifica (@($r.passaggiProprieta).Count -ge 1) "Catena di $(@($r.passaggiProprieta).Count) proprietari"
-}
-
-function Passaggio6 {
-    Titolo 6 "Verifica pubblica (senza login)"
-    $r = Invoke-Api GET "/verify/$TagId" -Anonimo
-    Verifica ($null -ne $r.certificatoAutenticita) "Certificato ricevuto"
-    $nomi = (@($r.capo.passaggiProprieta) | ForEach-Object proprietario) -join " -> "
-    Verifica (-not (($r | ConvertTo-Json -Depth 10) -match "Rossi")) "Nomi minimizzati (GDPR): $nomi"
-}
-
-function Passaggio7 {
-    Titolo 7 "Anti-replay: rifiuto del tag duplicato $TagId"
-    $codice = $null
-    try { Invoke-Api POST "/items" @{ brand = "Prada"; codiceModello = "PR-999"; materialiOriginari = "Nylon"; tagId = $TagId } | Out-Null } catch { $codice = Get-StatusCode $_ }
-    Verifica ($codice -eq 409) "Tag duplicato rifiutato: HTTP $codice (atteso 409)"
-    $codice = $null
-    try { Invoke-Api GET "/verify/TAG-INESISTENTE-999" -Anonimo | Out-Null } catch { $codice = Get-StatusCode $_ }
-    Verifica ($codice -eq 404) "Tag mai registrato: HTTP $codice (atteso 404)"
-    $codice = $null
-    try { Invoke-Api POST "/items" @{ brand = "X"; codiceModello = "Y"; materialiOriginari = "Z"; tagId = "NFC-XYZ" } -Anonimo | Out-Null } catch { $codice = Get-StatusCode $_ }
-    Verifica ($codice -eq 401) "Creazione senza login rifiutata: HTTP $codice (atteso 401)"
-}
-
-function Passaggio8 {
-    Titolo 8 "Verifica finale completa dei dati"
-    for ($i = 0; $i -lt 20; $i++) {
-        $r = Invoke-Api GET "/verify/$TagId" -Anonimo
-        if ($r.certificatoAutenticita.integrita.stato -ne "in_attesa") { break }
-        Start-Sleep -Milliseconds 500
-    }
-    $c = $r.certificatoAutenticita
-    Verifica ($c.autentico -eq $true) "autentico = $($c.autentico)"
-    Verifica ($c.integrita.stato -eq "verificato") "integrita = $($c.integrita.stato) ($($c.integrita.messaggio))"
-    if ($c.integrita.stato -in @("incompleto", "non_registrato")) { Write-Host "  [INFO] Esegui 'npm run migra' e ripeti il passaggio 8" -ForegroundColor Yellow }
-    Verifica (@($r.capo.storicoRigenerazione).Count -ge 1) "Eventi di rigenerazione: $(@($r.capo.storicoRigenerazione).Count)"
-    Verifica (@($r.capo.passaggiProprieta).Count -ge 1) "Passaggi di proprieta: $(@($r.capo.passaggiProprieta).Count)"
-}
-
-if ($Password) { $password = $Password } else {
-    $sicura = Read-Host "Password per $Email" -AsSecureString
-    $password = [System.Net.NetworkCredential]::new("", $sicura).Password
-}
-try {
-    $login = Invoke-Api POST "/auth/login" @{ email = $Email; password = $password } -Anonimo
-    $script:Token = $login.token
-    Write-Host "Accesso effettuato come $($login.utente.nome) ($($login.utente.ruolo))" -ForegroundColor Green
-} catch {
-    Write-Host "Login fallito: HTTP $(Get-StatusCode $_)" -ForegroundColor Red; exit 1
-}
-
-$daEseguire = if ($Passaggio -gt 0) { @($Passaggio) } else { 1..8 }
-foreach ($n in $daEseguire) {
-    try { & "Passaggio$n" } catch { Write-Host "  [ERRORE] $($_.Exception.Message)" -ForegroundColor Red; $script:Falliti++ }
-}
-Write-Host ""
-if ($script:Falliti -eq 0) { Write-Host "TUTTI I CONTROLLI SUPERATI" -ForegroundColor Green } else { Write-Host "CONTROLLI FALLITI: $script:Falliti" -ForegroundColor Red; exit 1 }
-```
-
 ## `backend/validators/schemi.js`
 
 ```javascript
@@ -4155,7 +4544,6 @@ import { TIPI_EVENTO, RUOLI, CATEGORIE, MATERIALI, STATI_CAPO, TAG_REGEX } from 
 
 const testo = (max) => z.string().trim().min(1, "Campo obbligatorio").max(max, `Massimo ${max} caratteri`);
 const testoOpzionale = (max) => z.string().trim().max(max, `Massimo ${max} caratteri`).optional();
-const annoCorrente = new Date().getFullYear();
 
 export const tagId = z.string().trim().regex(TAG_REGEX, "Il tagId deve avere 3-64 caratteri tra lettere, numeri, - e _");
 export const objectId = z.string().regex(/^[a-f\d]{24}$/i, "ID non valido");
@@ -4185,8 +4573,16 @@ const campiCapo = {
   filieraProvenienza: testoOpzionale(200),
   categoria: z.enum(CATEGORIE).optional(),
   materialePrincipale: z.enum(MATERIALI).optional(),
-  annoProduzione: z.coerce.number().int().min(1900).max(annoCorrente).optional(),
+  annoProduzione: z.coerce
+    .number()
+    .int()
+    .min(1900)
+    .refine((a) => a <= new Date().getFullYear(), "L'anno non può essere nel futuro")
+    .optional(),
 };
+
+// In modifica i campi facoltativi si possono svuotare inviando null
+const svuotabile = (schema) => schema.unwrap().nullable().optional();
 
 export const nuovoCapo = z
   .object({ ...campiCapo, tagId, proprietarioIniziale: testoOpzionale(100) })
@@ -4194,7 +4590,13 @@ export const nuovoCapo = z
 
 // Il tagId NON è modificabile: è il legame con il chip fisico
 export const modificaCapo = z
-  .object(campiCapo)
+  .object({
+    ...campiCapo,
+    filieraProvenienza: svuotabile(campiCapo.filieraProvenienza),
+    categoria: svuotabile(campiCapo.categoria),
+    materialePrincipale: svuotabile(campiCapo.materialePrincipale),
+    annoProduzione: svuotabile(campiCapo.annoProduzione),
+  })
   .partial()
   .strict()
   .refine((d) => Object.keys(d).length > 0, "Nessun campo da modificare");
@@ -4209,7 +4611,7 @@ export const nuovoEvento = z
     operatore: testoOpzionale(100),
     data: z.coerce
       .date()
-      .max(new Date(Date.now() + 60_000), "La data non può essere nel futuro")
+      .refine((d) => d.getTime() <= Date.now() + 60_000, "La data non può essere nel futuro")
       .optional(),
   })
   .strict();
@@ -4468,8 +4870,18 @@ console.log(`\nLettura pubblica recordByTag: 0 gas (chiamata di sola lettura)`);
 console.log(`Controlli: tag duplicato rifiutato = ${duplicato}; account senza ruolo rifiutato = ${negato}`);
 if (!gwei) console.log("Per stimare i costi: npm run misura-gas -- --gwei <prezzo gas> --prezzo-pol <euro per POL>");
 
-writeFileSync(new URL("./misure-gas.json", import.meta.url), JSON.stringify({ data: new Date().toISOString(), rpc, gwei, prezzoPol, misure: righe }, null, 2));
-console.log("Risultati salvati in contracts/misure-gas.json");
+const letturaCoerente = registrato && dataHash === h("dati-v2") && storico.length === 3;
+writeFileSync(
+  new URL("../docs/costi/misure-gas.json", import.meta.url),
+  JSON.stringify({ data: new Date().toISOString(), rpc, gwei, prezzoPol, controlli: { letturaCoerente, duplicato, negato }, misure: righe }, null, 2)
+);
+console.log("Risultati salvati in docs/costi/misure-gas.json");
+
+// Un controllo di sicurezza non superato deve far fallire lo script (codice di uscita 1)
+if (!letturaCoerente || !duplicato || !negato) {
+  console.error("CONTROLLI DI SICUREZZA NON SUPERATI");
+  process.exitCode = 1;
+}
 ```
 
 ## `contracts/package.json`
@@ -4659,7 +5071,7 @@ I prezzi cambiano di continuo: nella tesi va indicato un valore **con data e fon
 
 1. Prezzo del gas su Polygon PoS: PolygonScan Gas Tracker — https://polygonscan.com/gastracker
 2. Prezzo di POL in euro: CoinGecko — https://www.coingecko.com/en/coins/polygon/eur
-3. Ricalcolo: `npm run misura-gas -- --gwei <valore> --prezzo-pol <valore>` (salva anche `misure-gas.json`).
+3. Ricalcolo: `npm run misura-gas -- --gwei <valore> --prezzo-pol <valore>` (salva i risultati e l'esito dei controlli di sicurezza in `docs/costi/misure-gas.json`; se un controllo fallisce lo script termina con errore).
 
 ## Direzioni per la sostenibilità economica (Cap. 6, §3.3.3)
 
@@ -4761,7 +5173,8 @@ il portatile con la web app aperta sull'area gestionale.
 
 ## Prima di iniziare (10 minuti prima)
 
-- [ ] Apri `https://<indirizzo>/api/health` per "svegliare" il server (piano gratuito).
+- [ ] Apri `https://regen-luxury.onrender.com/api/health` per "svegliare" il server (piano gratuito).
+- [ ] Sul Mac: `npm run popola-demo` (ricrea i capi di prova se mancano e rende di nuovo valido il link del chip di prova).
 - [ ] Prova una lettura del tag e del QR.
 - [ ] Accedi all'area gestionale con un account **artigiano** e uno **commerciante** (due schede).
 - [ ] Tieni pronte le schermate in `docs/validazione/schermate/` come piano B se la rete non funziona.
@@ -4781,9 +5194,18 @@ il portatile con la web app aperta sull'area gestionale.
 6. **Manomissione (1 min).** In Atlas (Data Explorer) modifica la descrizione di un intervento. Ricarica il
    certificato: "Attenzione: dati non coincidenti". Ripristina il testo originale: torna "Capo autentico".
    Messaggio chiave: *la blockchain non impedisce di modificare il database, ma rende la modifica evidente*.
-7. **Contraffazione (30 s).** Apri `/v/FALSO-001`: "Capo non trovato — possibile contraffazione".
+   Senza toccare Atlas: apri `/v/DEMO-MANOMESSO` (storico già alterato nel database da `npm run popola-demo`).
+7. **Contraffazione (30 s).** Apri `/v/DEMO-FALSO-99`: "Capo non trovato — possibile contraffazione".
 8. **Costo zero (30 s).** "Il ciclo di vita di un capo costa meno di un centesimo di commissioni, pagate dalla
    piattaforma; l'utente non ha wallet né criptovaluta" (dati in `docs/costi/gas-e-costi.md`).
+
+## Piano B senza chip fisico
+
+- Tocco sul tag → link del chip di prova (vettore NXP AN12196):
+  `https://regen-luxury.onrender.com/s?e=EF963FF7828658A599F3041510671E88&c=94EED9EE65337086` (vale una volta;
+  la seconda apertura mostra "Link già utilizzato").
+- Capi pronti: `DEMO-JEANS-01` (impatto con fonti), `DEMO-BORSA-01` (3 proprietari), `DEMO-MANOMESSO`, `DEMO-FALSO-99`.
+- "Il tuo armadio" e "Storico" in alto: salvati solo sul telefono, nessun account.
 
 ## Domande probabili
 
@@ -4807,9 +5229,10 @@ Controlla sul sito di Render le condizioni attuali del piano gratuito prima dell
 ## Come funziona la versione online
 
 - **Database:** lo stesso cluster Atlas usato sul Mac → sul sito online si vedono gli stessi capi.
-- **Blockchain:** per ora registro **simulato** salvato nel database (`MOCK_LEDGER_STORE=mongo`), perché su
-  Render il disco si cancella a ogni riavvio. Anche il Mac usa lo stesso registro su database, così Mac e sito
-  online restano allineati (al primo avvio il vecchio file `backend/data/mock-ledger.json` viene importato).
+- **Blockchain:** per ora registro **simulato** salvato nel database (collezione `registro_simulato`,
+  `MOCK_LEDGER_STORE=mongo`, valore predefinito), perché su Render il disco si cancella a ogni riavvio. Anche il Mac
+  usa lo stesso registro, così Mac e sito online restano allineati (al primo avvio l'eventuale vecchio file
+  `backend/data/mock-ledger.json` viene importato).
   Limite da dichiarare: il registro simulato su database è meno indipendente del file; nella versione finale si
   passa a **Polygon Amoy** (vedi in fondo).
 - **Indirizzo pubblico:** il backend usa da solo quello assegnato da Render (`RENDER_EXTERNAL_URL`) per QR e link.
@@ -5018,69 +5441,49 @@ Controlla sul sito di Render le condizioni attuali del piano gratuito prima dell
 }
 ```
 
-## `docs/latex/pulisci-tex.mjs`
+## `docs/lca/coefficienti.md`
 
-```javascript
-// pulisci-tex.mjs - Ripulisce un file .tex dagli artefatti Unicode del copia-incolla
-// dalla chat (spazi invisibili, pedici/apici Unicode, % non escapati, ecc.).
-//
-// Uso (serve solo Node.js, già installato per il backend):
-//   node pulisci-tex.mjs capitolo2.tex
-// -> crea "capitolo2.pulito.tex" accanto all'originale e stampa un report.
-//    L'originale NON viene modificato: controlla il risultato e poi sostituiscilo.
-import { readFileSync, writeFileSync } from 'node:fs';
+```markdown
+# Coefficienti LCA per la stima dell'impatto evitato (punto 23)
 
-const file = process.argv[2];
-if (!file) {
-  console.error('Uso: node pulisci-tex.mjs <file.tex>');
-  process.exit(1);
-}
+Il calcolo è nel backend (`backend/services/impactService.js`, dati in `backend/data/coefficienti-lca.json`).
 
-let text = readFileSync(file, 'utf8');
-const report = [];
-const count = (re) => (text.match(re) || []).length;
+**Metodo.** Un capo rigenerato evita in parte l'acquisto di un capo nuovo equivalente:
 
-function sostituisci(descrizione, re, replacement) {
-  const n = count(re);
-  if (n > 0) {
-    text = text.replace(re, replacement);
-    report.push(`${String(n).padStart(4)}  ${descrizione}`);
-  }
-}
+> impatto evitato = impatto di produzione del capo nuovo × fattore di sostituzione
 
-// 1) caratteri invisibili (zero-width, BOM, soft hyphen, word joiner)
-sostituisci('caratteri invisibili rimossi (U+200B/C/D, U+2060, U+FEFF, U+00AD)', /[\u200B\u200C\u200D\u2060\uFEFF\u00AD]/g, '');
-// 2) spazi non standard -> spazio normale
-sostituisci('spazi speciali convertiti (NBSP, narrow NBSP, thin space...)', /[\u00A0\u202F\u2007\u2009\u200A]/g, ' ');
-// 3) pedici e apici Unicode -> comandi LaTeX
-const pedici = '₀₁₂₃₄₅₆₇₈₉';
-const apici = { '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9' };
-sostituisci('pedici Unicode -> \\textsubscript{} (es. CO₂)', /[₀-₉]+/g, (m) =>
-  `\\textsubscript{${[...m].map((c) => pedici.indexOf(c)).join('')}}`);
-sostituisci('apici Unicode -> \\textsuperscript{} (es. m²)', /[⁰¹²³⁴⁵⁶⁷⁸⁹]+/g, (m) =>
-  `\\textsuperscript{${[...m].map((c) => apici[c]).join('')}}`);
-// 4) percentuali non escapate dopo un numero ("99,95%" commenterebbe il resto della riga!)
-sostituisci('simboli % dopo un numero escapati in \\%', /(\d)\s?(?<!\\)%/g, '$1\\%');
-// 5) spazi multipli e spazi a fine riga
-sostituisci('spazi a fine riga rimossi', /[ \t]+$/gm, '');
+Si considerano solo le fasi di **produzione** (fibra → tessuto → confezione → distribuzione): l'uso e il fine
+vita avvengono comunque, con capo nuovo o rigenerato. Il risultato è una **stima**, non una misura.
 
-// --- solo segnalazioni (da correggere a mano) ---
-const warnings = [];
-text.split('\n').forEach((riga, i) => {
-  const n = i + 1;
-  if (/^\s*[●•▪◦]/.test(riga)) warnings.push(`riga ${n}: elenco puntato "●" -> usare \\begin{itemize} \\item ...`);
-  if (/(?<!\\)&/.test(riga) && !/tabular|align|\\\\\s*$/.test(riga)) warnings.push(`riga ${n}: "&" non escapato (fuori da tabelle usare \\&)`);
-  if (/(?<!\\)[#](?!\d)/.test(riga)) warnings.push(`riga ${n}: "#" non escapato (usare \\#)`);
-  const strani = riga.match(/[^\x00-\x7F\u00C0-\u017F“”‘’–—…«»°€]/gu);
-  if (strani) warnings.push(`riga ${n}: caratteri da verificare: ${[...new Set(strani)].join(' ')}`);
-});
+## Fattore di sostituzione
 
-const out = file.replace(/\.tex$/i, '') + '.pulito.tex';
-writeFileSync(out, text, 'utf8');
+| Valore usato | Intervallo | Fonte |
+|---|---|---|
+| **0,60** (prudente) | 0,60 – 0,85 | Farrant L., Olsen S.I., Wangel A. (2010). *Environmental benefits from reusing clothes*. Int. J. Life Cycle Assessment, 15, 726–736: l'acquisto di 100 capi di seconda mano evita la produzione di 60–85 capi nuovi. |
 
-console.log(`File pulito: ${out}\n`);
-console.log(report.length ? 'Correzioni automatiche:\n' + report.join('\n') : 'Nessuna correzione automatica necessaria.');
-console.log(warnings.length ? `\nDa controllare a mano (${warnings.length}):\n` + warnings.map((w) => '  - ' + w).join('\n') : '\nNessuna segnalazione.');
+## Impatto di produzione per categoria
+
+| Categoria | kg CO₂e | Litri d'acqua | Unità funzionale | Fonte | Stato |
+|---|---|---|---|---|---|
+| jeans | **20,0** | **2.922** | un paio di Levi's 501; fasi fibra, tessuto, confezione, accessori/imballaggio, trasporto e vendita | Levi Strauss & Co. (2015), *The Life Cycle of a Jean*. Totale ciclo di vita 33,4 kg CO₂e e 3.781 L: esclusi cura del consumatore (12,5 kg; 860 L) e fine vita (0,9 kg; 0 L) | verificato sulla presentazione dei risultati LCA |
+| t-shirt | 3,53 | 725 | t-shirt in cotone da 250 g, cradle-to-gate | Forfora N. et al. (2026), *A Comparative Life Cycle Assessment of T-Shirt Production Using Viscose, Lyocell, Cotton, and Polyester*, Sustainability 18(8), 4070: 14,1 kg CO₂e/kg e 2,9 m³/kg | **da verificare** sulla tabella dei risultati dell'articolo |
+
+Risultato mostrato per un paio di jeans: 20,0 × 0,6 = **12 kg CO₂e** e 2.922 × 0,6 = **1.753 L**
+(intervallo 12–17 kg e 1.753–2.484 L con fattore 0,60–0,85).
+
+## Categorie senza dati
+
+Per le altre categorie (giacca, borsa, scarpe, …) la web app mostra "stima non disponibile" invece di un
+numero senza fonte. Per aggiungerne una, inserire nel JSON valori con **fonte, anno, unità funzionale e
+confini del sistema** (ISO 14040/14044) e impostare `"verificato": true` solo dopo aver letto la fonte.
+
+## Nota sul prototipo precedente
+
+La prima versione del backend usava 15 kg CO₂e e 2.700 L per capo, moltiplicati per il numero di interventi,
+senza fonte: sono stati sostituiti da questo metodo, più prudente e citabile. Il dato molto diffuso "2.700 litri
+per una t-shirt" (WWF, 2013) è un'impronta idrica (water footprint), dovuta soprattutto alla coltivazione del
+cotone: è una grandezza calcolata con un metodo diverso dal consumo d'acqua dell'LCA, quindi non va mescolata
+con i valori di questa tabella.
 ```
 
 ## `docs/nfc/configurazione-tag.md`
@@ -5199,12 +5602,13 @@ e `npm run misura-tempi`. Legenda: ✅ verificato · ⏭️ ancora da provare in
 Come rieseguire tutto:
 
 ```bash
-cd backend && npm test                       # 38 test automatici (database in memoria)
+npm test                                     # 48 test automatici (database in memoria), dalla cartella principale
 npm run dev                                  # in un secondo terminale:
 npm run passaggi                             # Passaggi 1-8 sull'API reale
 npm run misura-tempi                         # requisito P (< 2 s)
-cd ../contracts && npm run chain             # in un terzo terminale, poi:
-npm run misura-gas                           # gas e controlli di sicurezza del contratto
+cd contracts && npm install && npm run compile
+npm run chain                                # in un terzo terminale, poi:
+npm run misura-gas                           # gas e controlli di sicurezza (esce con errore se un controllo fallisce)
 cd ../ai-module && python -m pytest test/    # servizio AI
 ```
 
@@ -5217,7 +5621,7 @@ cd ../ai-module && python -m pytest test/    # servizio AI
 | F | Dashboard di sostenibilità (CO₂, acqua) | `verify.test.js`: jeans → 12 kg CO₂e, 1.753 L con fonti; categoria senza dati → "non disponibile" | ✅ || ✅ categoria senza dati (giacca) → "non disponibile" · ⏭️ jeans |
 | U | Interfaccia mobile-first | Test nel browser (Chromium, schermo 390×844): home, certificato, gestione, etichetta, NFC | ✅ schermate in `docs/validazione/schermate/` || ⏭️ da provare nel browser (`npm run web`) |
 | U | Accesso pubblico senza registrazione | Passaggio 6 (verifica senza token) | ✅ || ✅ |
-| R | Immutabilità / rilevazione delle manomissioni | `verify.test.js`: modifica di un evento, dei dati del capo e cancellazione di un passaggio direttamente nel database → "manomesso"; stesso test su smart contract reale | ✅ rilevate tutte e 3 le manomissioni || ✅ integrità "verificato" (Passaggio 8) · ⏭️ manomissione simulata |
+| R | Immutabilità / rilevazione delle manomissioni | `verify.test.js`: modifica di un evento, dei dati del capo e cancellazione di un passaggio direttamente nel database → "manomesso"; stesso test su smart contract reale. `integrita.test.js`: stati di attesa o di errore falsificati nel database non danno mai "autentico" | ✅ rilevate tutte e 3 le manomissioni || ✅ integrità "verificato" (Passaggio 8) · ⏭️ manomissione simulata |
 | R | Anti-duplicazione del tag | `items.test.js` anti-replay (anche 3 richieste simultanee: 1×201, 2×409); Passaggio 7; tag eliminato non riusabile | ✅ || ✅ 409 sul tag duplicato |
 | R | Anti-replay del chip NFC (chip clonato) | `sun.test.js`: vettore NXP AN12196, stesso URL riusato → 409, CMAC alterato → 400 | ✅ || — serve il chip fisico |
 | R | Accesso controllato all'area gestionale | `auth.test.js`: 401 senza login, 403 per ruolo non ammesso, account disattivato | ✅ || ✅ 401 senza login |
@@ -5236,6 +5640,11 @@ cd ../ai-module && python -m pytest test/    # servizio AI
 - I tempi con Atlas (media 37,9 ms contro 5,7 ms in locale) includono la latenza di rete verso il cluster, ma la
   blockchain era ancora simulata: vanno rimisurati dopo il deploy del contratto su Polygon Amoy.
 - L'anticlonazione del chip è verificata con il vettore ufficiale NXP, non ancora con un chip fisico.
+- Il registro blockchain simulato della demo online è salvato nello stesso cluster del database: dimostra il
+  meccanismo, ma l'indipendenza reale dei dati si ottiene solo con Polygon Amoy.
+- "Autentico" solo quando tutto coincide con la blockchain. Una scrittura fallita lascia il capo in "verifica non
+  conclusiva" finché un operatore non esegue `npm run migra`: il riancoraggio non è automatico apposta, per non
+  registrare sulla blockchain dati eventualmente alterati nel database.
 - Il modulo AI non è ancora addestrato: accuratezza e matrice di confusione arriveranno dal notebook.
 - Con la custodia della piattaforma (decisione 4.2) la blockchain prova l'integrità dei dati, non l'identità
   dell'operatore che li ha inseriti.
@@ -5498,7 +5907,7 @@ function Foto({ foto }) {
       <img
         src={foto.src}
         alt=""
-        loading="lazy"
+        loading="eager"
         decoding="async"
         onError={(e) => e.currentTarget.parentElement.classList.add("foto-assente")}
       />
@@ -5534,8 +5943,9 @@ import { TIPI_EVENTO, data, hashBreve, numero, maiuscola } from "../utils/format
 
 const ESITI = {
   verificato: { classe: "ok", titolo: "Capo autentico", icona: "✓" },
-  in_attesa: { classe: "attesa", titolo: "Autentico · registrazione in corso", icona: "…" },
-  incompleto: { classe: "attesa", titolo: "Autentico · storico parzialmente registrato", icona: "!" },
+  // "Autentico" solo quando tutto coincide con la blockchain
+  in_attesa: { classe: "attesa", titolo: "Registrazione in corso", icona: "…" },
+  incompleto: { classe: "attesa", titolo: "Verifica non conclusiva", icona: "!" },
   manomesso: { classe: "ko", titolo: "Attenzione: dati non coincidenti", icona: "✕" },
   non_registrato: { classe: "ko", titolo: "Capo non registrato sulla blockchain", icona: "✕" },
 };
@@ -5561,12 +5971,12 @@ function Esito({ certificato, nfc }) {
   );
 }
 
-// "Aggiungi al mio armadio": solo per capi autentici; l'elenco resta sul dispositivo
+// "Aggiungi al mio armadio": solo per capi verificati; l'elenco resta sul dispositivo
 function AzioniArmadio({ dati }) {
   const armadio = useArmadio();
   const { tagId } = dati.capo;
-  if (ESITI[dati.certificatoAutenticita.integrita.stato]?.classe === "ko") return null;
   const presente = armadio.some((c) => c.tagId === tagId);
+  if (!presente && !dati.certificatoAutenticita.autentico) return null;
   return (
     <div className="azioni-armadio">
       {presente ? (
@@ -5619,6 +6029,9 @@ function Impatto({ impatto }) {
           </span>
         </div>
       </div>
+      {impatto.verificato === false && (
+        <p className="nota">Valori di letteratura ancora da verificare sulla fonte originale: considerali indicativi.</p>
+      )}
       <details className="fonti">
         <summary>Come è calcolato</summary>
         <p>{impatto.metodo}.</p>
@@ -5932,7 +6345,11 @@ export default function ModuloCapo({ iniziale = {}, nuovo = false, onInvia, inCo
     const dati = {};
     for (const [chiave, valore] of Object.entries(valori)) {
       if (!nuovo && (chiave === "tagId" || chiave === "proprietarioIniziale")) continue;
-      if (valore === "" || valore === undefined || valore === null) continue;
+      if (valore === "" || valore === undefined || valore === null) {
+        // in modifica, un campo facoltativo svuotato viene cancellato (null)
+        if (!nuovo && iniziale[chiave] != null && iniziale[chiave] !== "") dati[chiave] = null;
+        continue;
+      }
       dati[chiave] = chiave === "annoProduzione" ? Number(valore) : typeof valore === "string" ? valore.trim() : valore;
     }
     onInvia(dati);
@@ -6233,7 +6650,8 @@ export function AuthProvider({ children }) {
     }
     api("/auth/me")
       .then((d) => setUtente(d.utente))
-      .catch(() => token.cancella())
+      // solo un 401 significa sessione non valida; rete assente o server in avvio no
+      .catch((err) => err.status === 401 && token.cancella())
       .finally(() => setPronto(true));
   }, []);
 
@@ -6702,7 +7120,7 @@ export default function HomePage() {
 ## `frontend/src/pages/ItemDetailPage.jsx`
 
 ```jsx
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { api } from "../services/api.js";
 import { useAuth } from "../hooks/useAuth.jsx";
@@ -6837,8 +7255,15 @@ export default function ItemDetailPage() {
   }, [carica]);
 
   // Le scritture sulla blockchain sono asincrone: si aggiorna finché ci sono conferme in attesa
+  // (al massimo 60 controlli di fila, circa 2 minuti: oltre, basta ricaricare la pagina)
+  const controlli = useRef(0);
   useEffect(() => {
-    if (!capo || !inAttesa(capo)) return undefined;
+    if (!capo || !inAttesa(capo)) {
+      controlli.current = 0;
+      return undefined;
+    }
+    if (controlli.current >= 60) return undefined;
+    controlli.current += 1;
     const timer = setTimeout(carica, 2000);
     return () => clearTimeout(timer);
   }, [capo, carica]);
@@ -6846,6 +7271,7 @@ export default function ItemDetailPage() {
   const esegui = async (nome, percorso, metodo, corpo) => {
     setAzione(nome);
     setErrore(null);
+    controlli.current = 0;
     try {
       const r = await api(percorso, { metodo, corpo });
       if (r?._id) setCapo(r);
@@ -7016,7 +7442,7 @@ export default function LabelPage() {
       .then(([c, immagine]) => {
         setCapo(c);
         url = URL.createObjectURL(immagine);
-        setQr(url);
+        setQr({ src: url, indirizzo: immagine.urlVerifica });
       })
       .catch(setErrore);
     return () => url && URL.revokeObjectURL(url);
@@ -7024,7 +7450,8 @@ export default function LabelPage() {
 
   if (errore) return <Errore errore={errore} />;
   if (!capo || !qr) return <Caricamento />;
-  const indirizzo = `${window.location.origin}/v/${encodeURIComponent(capo.tagId)}`;
+  // l'indirizzo stampato è lo stesso contenuto nel QR (PUBLIC_BASE_URL del backend)
+  const indirizzo = qr.indirizzo ?? `${window.location.origin}/v/${encodeURIComponent(capo.tagId)}`;
 
   return (
     <section>
@@ -7037,7 +7464,7 @@ export default function LabelPage() {
         </button>
       </div>
       <div className="etichetta-stampa">
-        <img src={qr} alt={`QR code di verifica del capo ${capo.tagId}`} />
+        <img src={qr.src} alt={`QR code di verifica del capo ${capo.tagId}`} />
         <div>
           <p className="sopratitolo">Passaporto digitale</p>
           <h2>{capo.brand}</h2>
@@ -7246,7 +7673,12 @@ import { aggiornaNellArmadio, registraVerifica, riassuntoCapo } from "../utils/a
 const richieste = new Map();
 function verificaLink(e, c) {
   const chiave = `${e}|${c}`;
-  if (!richieste.has(chiave)) richieste.set(chiave, api(`/verify/sun?e=${encodeURIComponent(e)}&c=${encodeURIComponent(c)}`));
+  if (!richieste.has(chiave)) {
+    const richiesta = api(`/verify/sun?e=${encodeURIComponent(e)}&c=${encodeURIComponent(c)}`);
+    // errore di rete: si può riprovare (il link non è stato consumato dal server)
+    richiesta.catch((err) => err.status === 0 && richieste.delete(chiave));
+    richieste.set(chiave, richiesta);
+  }
   return richieste.get(chiave);
 }
 
@@ -7542,7 +7974,11 @@ export async function api(percorso, { metodo = "GET", corpo, formato = "json" } 
     token.cancella();
     window.dispatchEvent(new Event("regen:sessione-scaduta"));
   }
-  if (formato === "blob" && risposta.ok) return risposta.blob();
+  if (formato === "blob" && risposta.ok) {
+    const blob = await risposta.blob();
+    // il QR code riporta nell'intestazione l'indirizzo che contiene
+    return Object.assign(blob, { urlVerifica: risposta.headers.get("X-Url-Verifica") });
+  }
 
   const testo = await risposta.text();
   let dati = null;
@@ -8131,7 +8567,7 @@ export const iniziali = (testo = "") =>
 export const ESITO_BREVE = {
   verificato: { testo: "Autentico", classe: "ok" },
   in_attesa: { testo: "In registrazione", classe: "attesa" },
-  incompleto: { testo: "Storico parziale", classe: "attesa" },
+  incompleto: { testo: "Non conclusiva", classe: "attesa" },
   manomesso: { testo: "Dati alterati", classe: "ko" },
   non_registrato: { testo: "Non registrato", classe: "ko" },
   non_trovato: { testo: "Non trovato", classe: "ko" },
@@ -8203,6 +8639,7 @@ export default defineConfig(({ mode }) => {
     "imposta-db": "npm --prefix backend run imposta-db",
     "copia-db": "npm --prefix backend run copia-db",
     "crea-admin": "npm --prefix backend run crea-admin --",
+    "popola-demo": "npm --prefix backend run popola-demo --",
     "passaggi": "npm --prefix backend run passaggi --",
     "misura-tempi": "npm --prefix backend run misura-tempi --",
     "migra": "npm --prefix backend run migra",
@@ -8220,9 +8657,11 @@ export default defineConfig(({ mode }) => {
 Prototipo della tesi di laurea di Giuseppe Leonardo Viola (Ingegneria Informatica, Politecnico di Bari).
 Stato del progetto, decisioni e prompt: [`docs/Handoff.md`](docs/Handoff.md).
 
+**Online:** https://regen-luxury.onrender.com (Render, piano gratuito: la prima apertura dopo una pausa richiede ~1 minuto).
+
 | Cartella | Contenuto | Stato |
 |---|---|---|
-| `backend/` | API REST Node.js + Express + MongoDB: login e ruoli, capi, interventi, passaggi di proprietà, verifica pubblica con controllo di integrità sulla blockchain, QR, NFC NTAG 424 DNA | ✅ 38 test + Passaggi 1–8 |
+| `backend/` | API REST Node.js + Express + MongoDB: login e ruoli, capi, interventi, passaggi di proprietà, verifica pubblica con controllo di integrità sulla blockchain, QR, NFC NTAG 424 DNA | ✅ 48 test + Passaggi 1–8 |
 | `frontend/` | Web app React mobile-first: verifica pubblica (`/v/:tagId`, `/s` per NFC, `/scan`), area gestionale | ✅ |
 | `contracts/` | Smart contract `RegenLuxuryPassport` (ERC-721, OpenZeppelin), chain locale, deploy, misura del gas | ✅ testato su chain locale |
 | `ai-module/` | Classificazione del materiale da foto (notebook Colab + servizio ONNX) | 🟡 da addestrare su Colab |
@@ -8230,7 +8669,7 @@ Stato del progetto, decisioni e prompt: [`docs/Handoff.md`](docs/Handoff.md).
 
 ## Requisiti
 
-- **Node.js 20 o 22 LTS** e npm (`node -v`) — https://nodejs.org
+- **Node.js 20 o successivo** e npm (`node -v`; sul Mac c'è la 24, su Render la 22) — https://nodejs.org
 - **Git** (`git --version`)
 - Account **MongoDB Atlas** con un cluster gratuito (M0), un *database user* e il tuo IP in *Network Access*
 - Solo per il modulo AI: **Python 3.11+**
@@ -8246,6 +8685,7 @@ npm run installa             # dipendenze di backend e web app
 npm run imposta-db           # chiede la password del database user di Atlas (nascosta), la salva nel .env,
                              # genera JWT_SECRET se manca e prova subito la connessione
 npm run crea-admin           # crea il tuo account (la password la scegli tu, nascosta); se l'email esiste la reimposta
+npm run popola-demo          # capi dimostrativi (vedi sotto); si può rilanciare
 
 # 1) Backend  (terminale 1, resta aperto)
 npm run dev                  # "MongoDB Atlas: connesso" + API su http://localhost:5001 (la 5000 su macOS è di AirPlay)
@@ -8256,22 +8696,45 @@ npm run web                  # http://localhost:5173  (le chiamate /api vanno al
 # 3) Test  (terminale 3, con il backend avviato)
 npm run passaggi             # Passaggi 1-8: email e password del TUO account, non quella del database
 npm run misura-tempi         # requisito P (< 2 s)
-npm test                     # 38 test automatici (database in memoria)
+npm test                     # 48 test automatici (database in memoria)
 ```
 
 Le password sono due e diverse: quella del *database user* di Atlas (sta solo nel `.env`, si imposta con
 `npm run imposta-db`) e quella del tuo account della piattaforma (login nella web app e `npm run passaggi`,
 si imposta con `npm run crea-admin`). Solo per dati creati con la versione precedente del backend: `npm run migra`.
 
-Blockchain: di default `BLOCKCHAIN_MODE=mock` (registro simulato, gratuito). Per lo smart contract reale:
-`cd contracts && npm install && npm run chain` (terminale dedicato) → `npm run deploy` → nel `backend/.env`
-imposta `BLOCKCHAIN_MODE=polygon`, `POLYGON_RPC_URL=http://127.0.0.1:8545` e `CONTRACT_ADDRESS`.
+Blockchain: di default `BLOCKCHAIN_MODE=mock` (registro simulato, gratuito, salvato nel database e condiviso
+con il sito online). Per lo smart contract reale: `cd contracts && npm install && npm run compile`, poi
+`npm run chain` (terminale dedicato) → `npm run deploy` → nel `backend/.env` imposta `BLOCKCHAIN_MODE=polygon`,
+`POLYGON_RPC_URL=http://127.0.0.1:8545` e `CONTRACT_ADDRESS`. Un solo server alla volta deve usare la stessa chiave.
+
+## Dati dimostrativi
+
+`npm run popola-demo` crea (una volta) questi capi, con marchi inventati, interventi e proprietari. Il codice va
+scritto nel campo **«Hai il codice del tag?»** della home, oppure si apre `…/v/<codice>`:
+
+| Codice | Capo | Cosa mostra |
+|---|---|---|
+| `DEMO-JEANS-01` | Atelier Moretti, jeans | autentico, 2 interventi, 2 proprietari, impatto evitato (fonte verificata) |
+| `DEMO-TSHIRT-01` | Casa Vellani, t-shirt | autentico, impatto con valori «da verificare» |
+| `DEMO-BORSA-01` | Maison Aurelia, borsa | autentico, 3 proprietari, chip NFC di prova |
+| `DEMO-CAPPOTTO-01` | Sartoria Levante, cappotto | autentico, impatto non disponibile per la categoria |
+| `DEMO-MANOMESSO` | Maison Aurelia, giacca | storico alterato nel database → **manomesso** |
+| `DEMO-FALSO-99` | — | nessun capo → **non trovato**, possibile contraffazione |
+| `NFC-001` | capo dei Passaggi 1–8 | creato da `npm run passaggi` |
+
+Chip NFC di prova (vettore NXP AN12196): `/s?e=EF963FF7828658A599F3041510671E88&c=94EED9EE65337086` apre il
+certificato di `DEMO-BORSA-01` **una sola volta**; poi risponde «Link già utilizzato» (anti-replay). Rilanciando
+`npm run popola-demo` il link torna valido.
 
 ## API principali
 
 | Metodo | Percorso | Chi | Descrizione |
 |---|---|---|---|
+| GET | `/api/health` | pubblico | stato del server e modalità blockchain |
 | POST | `/api/auth/login` | tutti | login dell'area gestionale |
+| GET | `/api/auth/me` · POST `/api/auth/password` | loggati | profilo · cambio password |
+| GET, POST | `/api/auth/utenti` · PATCH `/api/auth/utenti/:id` | admin | account degli operatori |
 | GET | `/api/items?q=&stato=&pagina=&perPagina=` | loggati | elenco con ricerca e pagine |
 | POST | `/api/items` | brand manager, commerciante | nuovo capo (409 se il tag esiste già) |
 | GET | `/api/items/tag/:tagId` · `/api/items/:id` | loggati | ricerca per tag · dettaglio |
@@ -8289,6 +8752,12 @@ imposta `BLOCKCHAIN_MODE=polygon`, `POLYGON_RPC_URL=http://127.0.0.1:8545` e `CO
 
 ESLint, Prettier, MongoDB for VS Code, Solidity (Juan Blanco), PlantUML (jebbs), Python, Jupyter,
 PowerShell, LaTeX Workshop.
+
+## Dove tenere il progetto
+
+Meglio **fuori** dalle cartelle sincronizzate con iCloud (Scrivania e Documenti, se la sincronizzazione è attiva):
+iCloud può spostare nel cloud file di `.git` e `node_modules`, rallentando Git e creando copie in conflitto.
+Consigliato: `~/Progetti/regen-luxury` (vedi `docs/Handoff.md`, §8.1).
 
 ## Sicurezza
 
@@ -8371,72 +8840,67 @@ fs.writeFileSync(uscita, parti.join("\n") + "\n");
 console.log(`Esportati ${elenco.length} file in ${path.relative(process.cwd(), uscita)}`);
 ```
 
-## `tools/esporta-codice.ps1`
+## `tools/pulisci-tex.mjs`
 
-`````powershell
-<#
-  esporta-codice.ps1 - Esporta TUTTO il codice sorgente di una cartella in un
-  unico file Markdown, da allegare all'HandOff (o incollare in una nuova chat).
+```javascript
+// pulisci-tex.mjs - Ripulisce un file .tex dagli artefatti Unicode del copia-incolla
+// dalla chat (spazi invisibili, pedici/apici Unicode, % non escapati, ecc.).
+//
+// Uso (serve solo Node.js, già installato per il backend):
+//   node tools/pulisci-tex.mjs capitolo2.tex
+// -> crea "capitolo2.pulito.tex" accanto all'originale e stampa un report.
+//    L'originale NON viene modificato: controlla il risultato e poi sostituiscilo.
+import { readFileSync, writeFileSync } from 'node:fs';
 
-  Uso (PowerShell, dalla cartella del progetto, es. Desktop\backend\backend):
-    Set-ExecutionPolicy -Scope Process Bypass
-    .\esporta-codice.ps1                         # esporta la cartella corrente
-    .\esporta-codice.ps1 -Root "C:\percorso\tesi" -Output "codice-tesi.md"
-
-  Esclude automaticamente: node_modules, .git, build, .env (credenziali!),
-  package-lock.json, file binari e immagini.
-#>
-param(
-    [string]$Root = (Get-Location).Path,
-    [string]$Output = "codice-esportato.md"
-)
-
-$estensioni = @(".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx", ".json", ".sol", ".ps1",
-                ".md", ".tex", ".bib", ".puml", ".css", ".html", ".example", ".yml", ".yaml")
-$cartelleEscluse = @("node_modules", ".git", "dist", "build", "artifacts", "cache", "coverage")
-$fileEsclusi = @(".env", "package-lock.json", $Output)
-
-$linguaggio = @{
-    ".js" = "javascript"; ".mjs" = "javascript"; ".cjs" = "javascript"; ".jsx" = "jsx"
-    ".ts" = "typescript"; ".tsx" = "tsx"; ".json" = "json"; ".sol" = "solidity"
-    ".ps1" = "powershell"; ".tex" = "latex"; ".bib" = "bibtex"; ".puml" = "plantuml"
-    ".css" = "css"; ".html" = "html"; ".yml" = "yaml"; ".yaml" = "yaml"; ".md" = "markdown"
+const file = process.argv[2];
+if (!file) {
+  console.error('Uso: node tools/pulisci-tex.mjs <file.tex>');
+  process.exit(1);
 }
 
-$rootPath = (Resolve-Path $Root).Path
-$files = Get-ChildItem -Path $rootPath -Recurse -File -Force | Where-Object {
-    $rel = $_.FullName.Substring($rootPath.Length).TrimStart('\', '/')
-    $parti = $rel -split '[\\/]'
-    -not ($parti | Where-Object { $cartelleEscluse -contains $_ }) -and
-    -not ($fileEsclusi -contains $_.Name) -and
-    ($estensioni -contains $_.Extension.ToLower())
-} | Sort-Object FullName
+let text = readFileSync(file, 'utf8');
+const report = [];
+const count = (re) => (text.match(re) || []).length;
 
-$sb = New-Object System.Text.StringBuilder
-[void]$sb.AppendLine("# Codice esportato da: $rootPath")
-[void]$sb.AppendLine("")
-[void]$sb.AppendLine("Esportato il $(Get-Date -Format 'yyyy-MM-dd HH:mm') - $($files.Count) file")
-[void]$sb.AppendLine("")
-[void]$sb.AppendLine("## Struttura")
-[void]$sb.AppendLine("")
-[void]$sb.AppendLine('```')
-foreach ($f in $files) { [void]$sb.AppendLine($f.FullName.Substring($rootPath.Length).TrimStart('\', '/')) }
-[void]$sb.AppendLine('```')
-
-foreach ($f in $files) {
-    $rel = $f.FullName.Substring($rootPath.Length).TrimStart('\', '/')
-    $lang = $linguaggio[$f.Extension.ToLower()]
-    $contenuto = Get-Content -Path $f.FullName -Raw -Encoding UTF8
-    [void]$sb.AppendLine("")
-    [void]$sb.AppendLine("## ``$rel``")
-    [void]$sb.AppendLine("")
-    [void]$sb.AppendLine('````' + $lang)
-    [void]$sb.AppendLine($contenuto.TrimEnd())
-    [void]$sb.AppendLine('````')
+function sostituisci(descrizione, re, replacement) {
+  const n = count(re);
+  if (n > 0) {
+    text = text.replace(re, replacement);
+    report.push(`${String(n).padStart(4)}  ${descrizione}`);
+  }
 }
 
-$outPath = Join-Path $rootPath $Output
-[System.IO.File]::WriteAllText($outPath, $sb.ToString(), (New-Object System.Text.UTF8Encoding($false)))
-Write-Host "Esportati $($files.Count) file in: $outPath" -ForegroundColor Green
-Write-Host "Controlla che NON contenga password o stringhe di connessione prima di condividerlo." -ForegroundColor Yellow
-`````
+// 1) caratteri invisibili (zero-width, BOM, soft hyphen, word joiner)
+sostituisci('caratteri invisibili rimossi (U+200B/C/D, U+2060, U+FEFF, U+00AD)', /[\u200B\u200C\u200D\u2060\uFEFF\u00AD]/g, '');
+// 2) spazi non standard -> spazio normale
+sostituisci('spazi speciali convertiti (NBSP, narrow NBSP, thin space...)', /[\u00A0\u202F\u2007\u2009\u200A]/g, ' ');
+// 3) pedici e apici Unicode -> comandi LaTeX
+const pedici = '₀₁₂₃₄₅₆₇₈₉';
+const apici = { '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9' };
+sostituisci('pedici Unicode -> \\textsubscript{} (es. CO₂)', /[₀-₉]+/g, (m) =>
+  `\\textsubscript{${[...m].map((c) => pedici.indexOf(c)).join('')}}`);
+sostituisci('apici Unicode -> \\textsuperscript{} (es. m²)', /[⁰¹²³⁴⁵⁶⁷⁸⁹]+/g, (m) =>
+  `\\textsuperscript{${[...m].map((c) => apici[c]).join('')}}`);
+// 4) percentuali non escapate dopo un numero ("99,95%" commenterebbe il resto della riga!)
+sostituisci('simboli % dopo un numero escapati in \\%', /(\d)\s?(?<!\\)%/g, '$1\\%');
+// 5) spazi multipli e spazi a fine riga
+sostituisci('spazi a fine riga rimossi', /[ \t]+$/gm, '');
+
+// --- solo segnalazioni (da correggere a mano) ---
+const warnings = [];
+text.split('\n').forEach((riga, i) => {
+  const n = i + 1;
+  if (/^\s*[●•▪◦]/.test(riga)) warnings.push(`riga ${n}: elenco puntato "●" -> usare \\begin{itemize} \\item ...`);
+  if (/(?<!\\)&/.test(riga) && !/tabular|align|\\\\\s*$/.test(riga)) warnings.push(`riga ${n}: "&" non escapato (fuori da tabelle usare \\&)`);
+  if (/(?<!\\)[#](?!\d)/.test(riga)) warnings.push(`riga ${n}: "#" non escapato (usare \\#)`);
+  const strani = riga.match(/[^\x00-\x7F\u00C0-\u017F“”‘’–—…«»°€]/gu);
+  if (strani) warnings.push(`riga ${n}: caratteri da verificare: ${[...new Set(strani)].join(' ')}`);
+});
+
+const out = file.replace(/\.tex$/i, '') + '.pulito.tex';
+writeFileSync(out, text, 'utf8');
+
+console.log(`File pulito: ${out}\n`);
+console.log(report.length ? 'Correzioni automatiche:\n' + report.join('\n') : 'Nessuna correzione automatica necessaria.');
+console.log(warnings.length ? `\nDa controllare a mano (${warnings.length}):\n` + warnings.map((w) => '  - ' + w).join('\n') : '\nNessuna segnalazione.');
+```

@@ -35,7 +35,7 @@ I prezzi cambiano di continuo: nella tesi va indicato un valore **con data e fon
 
 1. Prezzo del gas su Polygon PoS: PolygonScan Gas Tracker — https://polygonscan.com/gastracker
 2. Prezzo di POL in euro: CoinGecko — https://www.coingecko.com/en/coins/polygon/eur
-3. Ricalcolo: `npm run misura-gas -- --gwei <valore> --prezzo-pol <valore>` (salva anche `misure-gas.json`).
+3. Ricalcolo: `npm run misura-gas -- --gwei <valore> --prezzo-pol <valore>` (salva i risultati e l'esito dei controlli di sicurezza in `docs/costi/misure-gas.json`; se un controllo fallisce lo script termina con errore).
 
 ## Direzioni per la sostenibilità economica (Cap. 6, §3.3.3)
 
