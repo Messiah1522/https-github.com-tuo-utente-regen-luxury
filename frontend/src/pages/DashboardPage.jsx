@@ -88,7 +88,7 @@ export default function DashboardPage() {
                     {capo.stato === "archiviato" && <span className="etichetta">Archiviato</span>}
                   </span>
                   <span className="nota">
-                    {capo.storicoRigenerazione?.length ?? 0} interventi · creato il {data(capo.createdAt)}
+                    {capo.storicoRigenerazione?.length ?? 0} {(capo.storicoRigenerazione?.length ?? 0) === 1 ? "intervento" : "interventi"} · creato il {data(capo.createdAt)}
                   </span>
                   <Ancoraggio ancoraggio={capo.registrazione} />
                 </Link>

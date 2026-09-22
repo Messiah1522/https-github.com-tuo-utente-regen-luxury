@@ -2,6 +2,7 @@ import { Routes, Route } from "react-router-dom";
 import Layout from "./components/Layout.jsx";
 import Protetta from "./components/Protetta.jsx";
 import HomePage from "./pages/HomePage.jsx";
+import ArmadioPage from "./pages/ArmadioPage.jsx";
 import VerifyPage from "./pages/VerifyPage.jsx";
 import SunPage from "./pages/SunPage.jsx";
 import ScanPage from "./pages/ScanPage.jsx";
@@ -23,6 +24,7 @@ export default function App() {
         <Route path="v/:tagId" element={<VerifyPage />} />
         <Route path="s" element={<SunPage />} />
         <Route path="scan" element={<ScanPage />} />
+        <Route path="armadio" element={<ArmadioPage />} />
         <Route path="login" element={<LoginPage />} />
 
         {/* Area gestionale (commercianti, artigiani, brand manager) */}

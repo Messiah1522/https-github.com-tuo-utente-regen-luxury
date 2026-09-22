@@ -1,6 +1,6 @@
 # Codice completo del progetto
 
-Esportato il 22/09/2026, 00:51:11 da `rl` — 108 file.
+Esportato il 22/09/2026, 10:46:25 da `rl` — 120 file.
 
 ## Indice
 
@@ -36,7 +36,9 @@ Esportato il 22/09/2026, 00:51:11 da `rl` — 108 file.
 - `backend/routes/items.js`
 - `backend/routes/verify.js`
 - `backend/scripts/_cli.js`
+- `backend/scripts/copia-db.js`
 - `backend/scripts/crea-admin.js`
+- `backend/scripts/imposta-db.js`
 - `backend/scripts/migra-ancoraggi.js`
 - `backend/scripts/misura-tempi.js`
 - `backend/scripts/passaggi.js`
@@ -54,6 +56,7 @@ Esportato il 22/09/2026, 00:51:11 da `rl` — 108 file.
 - `backend/test/hash.test.js`
 - `backend/test/helpers.js`
 - `backend/test/items.test.js`
+- `backend/test/registro-mongo.test.js`
 - `backend/test/sun.test.js`
 - `backend/test/verify.test.js`
 - `backend/test-powershell/passaggi.ps1`
@@ -68,6 +71,7 @@ Esportato il 22/09/2026, 00:51:11 da `rl` — 108 file.
 - `contracts/package.json`
 - `contracts/RegenLuxuryPassport.sol`
 - `docs/costi/gas-e-costi.md`
+- `docs/crediti-foto.md`
 - `docs/decisioni/4.2-custodia-e-commissioni.md`
 - `docs/demo.md`
 - `docs/deploy.md`
@@ -83,15 +87,21 @@ Esportato il 22/09/2026, 00:51:11 da `rl` — 108 file.
 - `frontend/package.json`
 - `frontend/public/favicon.svg`
 - `frontend/src/App.jsx`
+- `frontend/src/assets/fonts/OFL-cormorant-garamond.txt`
 - `frontend/src/components/Ancoraggio.jsx`
+- `frontend/src/components/Carosello.jsx`
 - `frontend/src/components/Certificato.jsx`
+- `frontend/src/components/Icone.jsx`
 - `frontend/src/components/Layout.jsx`
 - `frontend/src/components/ModuloCapo.jsx`
 - `frontend/src/components/Protetta.jsx`
 - `frontend/src/components/Stato.jsx`
+- `frontend/src/components/StoricoMenu.jsx`
+- `frontend/src/data/foto.js`
 - `frontend/src/hooks/useAuth.jsx`
 - `frontend/src/main.jsx`
 - `frontend/src/pages/AccountPage.jsx`
+- `frontend/src/pages/ArmadioPage.jsx`
 - `frontend/src/pages/DashboardPage.jsx`
 - `frontend/src/pages/HomePage.jsx`
 - `frontend/src/pages/ItemDetailPage.jsx`
@@ -105,9 +115,11 @@ Esportato il 22/09/2026, 00:51:11 da `rl` — 108 file.
 - `frontend/src/pages/VerifyPage.jsx`
 - `frontend/src/services/api.js`
 - `frontend/src/styles/app.css`
+- `frontend/src/utils/archivio.js`
 - `frontend/src/utils/formato.js`
 - `frontend/src/utils/nfc.js`
 - `frontend/vite.config.js`
+- `package.json`
 - `README.md`
 - `render.yaml`
 - `tools/esporta-codice.mjs`
@@ -966,9 +978,13 @@ if __name__ == "__main__":
 ```bash
 # Copia questo file in ".env" e completa i valori. NON condividere .env (contiene credenziali).
 
-# --- Database (MongoDB Atlas: progetto "tesis", Cluster0, Frankfurt) ---
+# --- Database (MongoDB Atlas, database "regen_luxury") ---
 MONGO_URI=mongodb+srv://<utente>:<password>@cluster0.xxxxx.mongodb.net/regen_luxury?retryWrites=true&w=majority
-PORT=5000
+
+# --- Server ---
+# 5001 e non 5000: su macOS la porta 5000 è occupata da AirPlay Receiver.
+# Anche la web app (Vite) legge questo valore: basta cambiarlo qui.
+PORT=5001
 
 # --- Autenticazione (area gestionale) ---
 # Stringa lunga e casuale. Generala con:  node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
@@ -990,6 +1006,9 @@ RATE_LIMIT_LOGIN_PER_15MIN=10
 # mock    = registro simulato su file (nessun costo)
 # polygon = smart contract reale (Polygon Amoy o chain locale Hardhat)
 BLOCKCHAIN_MODE=mock
+# Dove salvare il registro simulato: file (predefinito, separato dal database) oppure mongo
+# (collezione del database: serve se l'app gira anche online su Render, dove i file si cancellano)
+MOCK_LEDGER_STORE=file
 MOCK_LEDGER_FILE=./data/mock-ledger.json
 MOCK_CHAIN_LATENCY_MS=300
 POLYGON_RPC_URL=https://rpc-amoy.polygon.technology
@@ -1043,7 +1062,8 @@ export function creaApp() {
       contentSecurityPolicy: {
         directives: {
           "worker-src": ["'self'", "blob:"],
-          "img-src": ["'self'", "data:", "blob:"],
+          // foto decorative della home (Unsplash, licenza Unsplash)
+          "img-src": ["'self'", "data:", "blob:", "https://images.unsplash.com"],
           "upgrade-insecure-requests": process.env.NODE_ENV === "production" ? [] : null,
         },
       },
@@ -1091,8 +1111,26 @@ export async function connectDB(uri = process.env.MONGO_URI ?? process.env.MONGO
     throw new Error("MONGO_URI non definita: controlla il file .env");
   }
   mongoose.set("strictQuery", true);
-  await mongoose.connect(uri);
+  await mongoose.connect(uri, { serverSelectionTimeoutMS: 15000 });
   console.log("MongoDB Atlas: connesso");
+}
+
+// Traduce gli errori di connessione più comuni in un'indicazione pratica.
+export function spiegaErroreMongo(err) {
+  const m = String(err?.message ?? err);
+  if (/bad auth|authentication failed/i.test(m)) {
+    return "Atlas ha rifiutato utente o password del database. Su Atlas (Security → Database Access → Edit) salva la password con \"Update User\", poi inseriscila con: npm run imposta-db";
+  }
+  if (/whitelist|IP address|isn't allowed/i.test(m)) {
+    return "il tuo indirizzo IP non è autorizzato. Su Atlas: Security → Network Access → Add IP Address → Add Current IP Address.";
+  }
+  if (/ENOTFOUND|querySrv|EBADNAME/i.test(m)) {
+    return "indirizzo del cluster non trovato: controlla la parte dopo la @ in MONGO_URI e la connessione a Internet.";
+  }
+  if (/timed out|ETIMEDOUT|ECONNREFUSED/i.test(m)) {
+    return "il database non risponde: controlla la connessione a Internet e che il tuo IP sia in Network Access su Atlas.";
+  }
+  return m;
 }
 ```
 
@@ -1932,6 +1970,8 @@ export default mongoose.model("User", userSchema);
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
+    "imposta-db": "node scripts/imposta-db.js",
+    "copia-db": "node scripts/copia-db.js",
     "test": "node --test --test-concurrency=1",
     "passaggi": "node scripts/passaggi.js",
     "misura-tempi": "node scripts/misura-tempi.js",
@@ -2101,17 +2141,56 @@ export const colore = {
   ciano: (t) => `\x1b[36m${t}\x1b[0m`,
 };
 
+// Chiede un valore al terminale. Con { nascosto: true } (password) al posto dei
+// caratteri scritti o incollati compare un * per ciascuno.
 export function chiedi(domanda, { nascosto = false } = {}) {
+  if (nascosto && process.stdin.isTTY) return chiediNascosto(domanda);
   return new Promise((resolve) => {
-    const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: true });
-    if (nascosto) {
-      rl._writeToOutput = (testo) => rl.output.write(testo.includes(domanda) ? testo : "");
-    }
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: !nascosto && process.stdin.isTTY });
     rl.question(domanda, (risposta) => {
       rl.close();
-      if (nascosto) process.stdout.write("\n");
       resolve(risposta.trim());
     });
+  });
+}
+
+// Lettura carattere per carattere in "raw mode": il terminale mostra solo asterischi.
+function chiediNascosto(domanda) {
+  return new Promise((resolve) => {
+    const { stdin, stdout } = process;
+    stdout.write(domanda);
+    stdin.setRawMode(true);
+    stdin.setEncoding("utf8");
+    stdin.resume();
+    let valore = "";
+    const fine = () => {
+      stdin.off("data", suDati);
+      stdin.setRawMode(false);
+      stdin.pause();
+      stdout.write("\n");
+      resolve(valore.trim());
+    };
+    const suDati = (blocco) => {
+      // toglie le sequenze di controllo (frecce, incolla "bracketed" del terminale)
+      for (const c of blocco.replace(/\x1b\[[0-9;?]*[~A-Za-z]/g, "")) {
+        if (c === "\r" || c === "\n") return fine();
+        if (c === "\u0003") { // Ctrl+C
+          stdin.setRawMode(false);
+          stdout.write("\n");
+          process.exit(130);
+        }
+        if (c === "\u007f" || c === "\b") { // cancella
+          if (valore) {
+            valore = valore.slice(0, -1);
+            stdout.write("\b \b");
+          }
+        } else if (c >= " ") {
+          valore += c;
+          stdout.write("*");
+        }
+      }
+    };
+    stdin.on("data", suDati);
   });
 }
 
@@ -2137,58 +2216,209 @@ export async function chiamata(base, metodo, percorso, { corpo, token } = {}) {
 export const attendi = (ms) => new Promise((r) => setTimeout(r, ms));
 ```
 
+## `backend/scripts/copia-db.js`
+
+```javascript
+/*
+ * Copia negli appunti la stringa di connessione MONGO_URI del file .env,
+ * senza mostrarla sullo schermo (serve per incollarla nel pannello di Render).
+ * Uso:  npm run copia-db
+ */
+import fs from "node:fs";
+import path from "node:path";
+import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import dotenv from "dotenv";
+import { colore } from "./_cli.js";
+
+const fileEnv = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", ".env");
+const uri = fs.existsSync(fileEnv) ? dotenv.parse(fs.readFileSync(fileEnv)).MONGO_URI : undefined;
+if (!uri || uri.includes("<") || uri.includes("xxxxx")) {
+  console.error(colore.rosso("MONGO_URI mancante nel file .env: esegui prima npm run imposta-db"));
+  process.exit(1);
+}
+
+const comando = { darwin: ["pbcopy", []], win32: ["clip", []] }[process.platform] ?? ["xclip", ["-selection", "clipboard"]];
+const figlio = spawn(comando[0], comando[1], { stdio: ["pipe", "ignore", "ignore"] });
+figlio.on("error", () => {
+  console.error(colore.rosso("Non riesco a usare gli appunti: apri backend/.env e copia a mano il valore dopo MONGO_URI="));
+  process.exit(1);
+});
+figlio.on("close", (codice) => {
+  if (codice !== 0) return;
+  console.log(colore.verde("✓ Stringa di connessione copiata negli appunti (non viene mostrata)."));
+  console.log("Incollala con Cmd+V nel campo MONGO_URI di Render. Non incollarla in chat.");
+});
+figlio.stdin.end(uri);
+```
+
 ## `backend/scripts/crea-admin.js`
 
 ```javascript
 /*
- * Crea il primo account amministratore (o un account con un altro ruolo).
+ * Crea un account (di solito l'amministratore) oppure, se l'email esiste già,
+ * ne reimposta la password. La password la scegli tu e non viene mai mostrata.
  * Uso:
  *   npm run crea-admin
  *   npm run crea-admin -- --email mario@boutique.it --nome "Mario Rossi" --ruolo commerciante
- * La password viene generata casualmente e mostrata UNA sola volta: conservala.
+ *   npm run crea-admin -- --genera     # genera una password casuale e la mostra UNA volta
  */
 import "dotenv/config";
-import readline from "node:readline/promises";
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
-import { connectDB } from "../config/db.js";
+import { connectDB, spiegaErroreMongo } from "../config/db.js";
 import User from "../models/User.js";
 import { RUOLI } from "../models/costanti.js";
+import { colore, chiedi } from "./_cli.js";
 
+const LUNGHEZZA_MINIMA = 10; // stessa regola della web app
 const argomento = (nome) => {
   const i = process.argv.indexOf(`--${nome}`);
   return i > -1 ? process.argv[i + 1] : undefined;
 };
+const esci = async (codice, messaggio) => {
+  if (messaggio) console.error(colore.rosso(messaggio));
+  await mongoose.disconnect().catch(() => {});
+  process.exit(codice);
+};
 
-const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-const email = (argomento("email") ?? (await rl.question("Email: "))).trim().toLowerCase();
-const nome = (argomento("nome") ?? (await rl.question("Nome e cognome: "))).trim();
 const ruolo = argomento("ruolo") ?? "admin";
-rl.close();
+if (!RUOLI.includes(ruolo)) await esci(1, `Ruolo non valido. Ruoli ammessi: ${RUOLI.join(", ")}`);
 
-if (!email.includes("@") || !nome) {
-  console.error("Email o nome non validi.");
-  process.exit(1);
-}
-if (!RUOLI.includes(ruolo)) {
-  console.error(`Ruolo non valido. Ruoli ammessi: ${RUOLI.join(", ")}`);
-  process.exit(1);
+try {
+  await connectDB();
+} catch (err) {
+  await esci(1, `Database non raggiungibile: ${spiegaErroreMongo(err)}`);
 }
 
-await connectDB();
-if (await User.exists({ email })) {
-  console.error(`Esiste già un utente con email ${email}.`);
-  await mongoose.disconnect();
-  process.exit(1);
+const email = (argomento("email") ?? (await chiedi("Email: "))).trim().toLowerCase();
+if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) await esci(1, "Email non valida.");
+
+const esistente = await User.findOne({ email });
+if (esistente) {
+  const risposta = await chiedi(`Esiste già l'account ${email} (${esistente.ruolo}). Vuoi reimpostarne la password? (s/n) `);
+  if (!/^s/i.test(risposta)) await esci(0);
 }
-const password = argomento("password") ?? crypto.randomBytes(12).toString("base64url");
-await User.create({ nome, email, ruolo, passwordHash: await bcrypt.hash(password, 12) });
+const nome = esistente ? esistente.nome : (argomento("nome") ?? (await chiedi("Nome e cognome: "))).trim();
+if (!nome) await esci(1, "Il nome è obbligatorio.");
+
+let password = argomento("password");
+const generata = !password && process.argv.includes("--genera");
+if (generata) password = crypto.randomBytes(12).toString("base64url");
+for (let tentativo = 0; !password && tentativo < 3; tentativo++) {
+  const prima = await chiedi(`Scegli la password dell'account (almeno ${LUNGHEZZA_MINIMA} caratteri, non verrà mostrata): `, { nascosto: true });
+  if (prima.length < LUNGHEZZA_MINIMA) {
+    console.log(colore.giallo(`Troppo corta: servono almeno ${LUNGHEZZA_MINIMA} caratteri.`));
+    continue;
+  }
+  const seconda = await chiedi("Ripetila: ", { nascosto: true });
+  if (prima !== seconda) {
+    console.log(colore.giallo("Le due password non coincidono, riprova."));
+    continue;
+  }
+  password = prima;
+}
+if (!password || password.length < LUNGHEZZA_MINIMA) await esci(1, "Nessuna password valida: account non modificato.");
+
+const passwordHash = await bcrypt.hash(password, 12);
+if (esistente) {
+  esistente.passwordHash = passwordHash;
+  await esistente.save();
+  console.log(colore.verde(`\n✓ Password reimpostata per ${email} (ruolo: ${esistente.ruolo})`));
+  if (!esistente.attivo) console.log(colore.giallo("Attenzione: l'account è disattivato (riattivalo dalla pagina Utenti)."));
+} else {
+  await User.create({ nome, email, ruolo, passwordHash });
+  console.log(colore.verde(`\n✓ Account creato: ${email} (ruolo: ${ruolo})`));
+}
+if (generata) console.log(`Password generata: ${password}\nConservala ora: non verrà mostrata di nuovo.`);
+console.log("Usa questa email e questa password per accedere alla web app e per npm run passaggi.\n");
 await mongoose.disconnect();
+```
 
-console.log(`\nAccount creato: ${email} (ruolo: ${ruolo})`);
-console.log(`Password: ${password}`);
-console.log("Conservala ora: non verrà mostrata di nuovo. Potrai cambiarla dalla web app.\n");
+## `backend/scripts/imposta-db.js`
+
+```javascript
+/*
+ * Inserisce la password del database user di Atlas nel file .env (riga MONGO_URI)
+ * e prova subito la connessione. La password non viene mai mostrata sullo schermo.
+ * Uso:  npm run imposta-db
+ * Se MONGO_URI manca o è ancora quella di esempio, chiede prima la stringa di
+ * connessione di Atlas (Connect → Drivers).
+ */
+import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import mongoose from "mongoose";
+import { colore, chiedi } from "./_cli.js";
+import { spiegaErroreMongo } from "../config/db.js";
+
+const cartella = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
+const fileEnv = process.env.IMPOSTA_DB_FILE ?? path.join(cartella, ".env"); // variabile usata solo dai test
+const togliVirgolette = (s) => s.trim().replace(/^["'<]+|["'>]+$/g, "");
+
+// mongodb+srv://utente:password@host/database?parametri  →  parti utili (senza password)
+function analizza(testo) {
+  const m = /^mongodb\+srv:\/\/([^:@/]+)(?::.*)?@([^@/?]+)(?:\/([^?]*))?(?:\?(.*))?$/.exec(togliVirgolette(testo));
+  if (!m || m[1].includes("<") || m[2].includes("xxxxx")) return null;
+  const parametri = new URLSearchParams(m[4] ?? "");
+  if (!parametri.has("retryWrites")) parametri.set("retryWrites", "true");
+  if (!parametri.has("w")) parametri.set("w", "majority");
+  return { utente: decodeURIComponent(m[1]), host: m[2], database: m[3] || "regen_luxury", parametri: parametri.toString() };
+}
+
+if (!fs.existsSync(fileEnv)) {
+  fs.copyFileSync(path.join(cartella, ".env.example"), fileEnv);
+  console.log(colore.giallo("File .env creato copiando .env.example"));
+}
+const righe = fs.readFileSync(fileEnv, "utf8").split("\n");
+const indice = righe.findIndex((r) => /^\s*MONGO_URI\s*=/.test(r));
+
+let parti = indice >= 0 ? analizza(righe[indice].replace(/^\s*MONGO_URI\s*=\s*/, "")) : null;
+if (!parti) {
+  console.log("Incolla la stringa di connessione di Atlas (Connect → Drivers): non verrà mostrata.");
+  parti = analizza(await chiedi("Stringa di connessione: ", { nascosto: true }));
+  if (!parti) {
+    console.error(colore.rosso("Stringa non valida: deve iniziare con mongodb+srv:// e contenere l'indirizzo del cluster."));
+    process.exit(1);
+  }
+}
+
+console.log(`Utente del database: ${parti.utente}   Cluster: ${parti.host}   Database: ${parti.database}`);
+const password = togliVirgolette(await chiedi("Password del database user (quella di Atlas, NON quella dell'admin): ", { nascosto: true }));
+if (!password) {
+  console.error(colore.rosso("Password vuota: il file .env non è stato modificato."));
+  process.exit(1);
+}
+
+const uri = `mongodb+srv://${encodeURIComponent(parti.utente)}:${encodeURIComponent(password)}@${parti.host}/${parti.database}?${parti.parametri}`;
+const nuovaRiga = `MONGO_URI=${uri}`;
+if (indice >= 0) righe[indice] = nuovaRiga;
+else righe.unshift(nuovaRiga);
+// JWT_SECRET vuoto: se ne genera uno casuale (firma i login; non va mai condiviso)
+const indiceJwt = righe.findIndex((r) => /^\s*JWT_SECRET\s*=/.test(r));
+const jwtVuoto = indiceJwt < 0 || /^\s*JWT_SECRET\s*=\s*$/.test(righe[indiceJwt]);
+if (jwtVuoto) {
+  const rigaJwt = `JWT_SECRET=${crypto.randomBytes(48).toString("base64url")}`;
+  if (indiceJwt >= 0) righe[indiceJwt] = rigaJwt;
+  else righe.push(rigaJwt);
+}
+fs.writeFileSync(fileEnv, righe.join("\n"));
+console.log(colore.verde("✓ Password salvata nel file .env"));
+if (jwtVuoto) console.log(colore.verde("✓ Generato anche JWT_SECRET (serve a firmare i login)"));
+
+console.log("Provo la connessione ad Atlas…");
+try {
+  await mongoose.connect(uri, { serverSelectionTimeoutMS: 15000 });
+  await mongoose.connection.db.command({ ping: 1 });
+  console.log(colore.verde(`✓ Connessione riuscita. Ora puoi avviare il server con: npm run dev`));
+} catch (err) {
+  console.error(colore.rosso(`✗ Connessione non riuscita: ${spiegaErroreMongo(err)}`));
+  process.exitCode = 1;
+} finally {
+  await mongoose.disconnect().catch(() => {});
+}
 ```
 
 ## `backend/scripts/migra-ancoraggi.js`
@@ -2239,7 +2469,7 @@ const argomento = (nome, predefinito) => {
   const i = process.argv.indexOf(`--${nome}`);
   return i > -1 ? process.argv[i + 1] : predefinito;
 };
-const BASE = argomento("base", `http://localhost:${process.env.PORT ?? 5000}/api`);
+const BASE = argomento("base", `http://localhost:${process.env.PORT ?? 5001}/api`);
 const TAG = argomento("tag", "NFC-001");
 const N = Number(argomento("n", 50));
 
@@ -2273,7 +2503,7 @@ console.log(tempi.at(-1) < 2000 ? colore.verde("Requisito P rispettato (tutte le
  *   npm run passaggi                    # tutti i passaggi
  *   npm run passaggi -- --passaggio 7   # solo il passaggio 7
  * Credenziali: chieste all'avvio, oppure variabili PASSAGGI_EMAIL e PASSAGGI_PASSWORD.
- * Altre opzioni: --base http://localhost:5000/api  --tag NFC-001
+ * Altre opzioni: --base http://localhost:5001/api  --tag NFC-001
  */
 import "dotenv/config";
 import { colore, chiedi, chiamata, attendi } from "./_cli.js";
@@ -2282,7 +2512,7 @@ const argomento = (nome, predefinito) => {
   const i = process.argv.indexOf(`--${nome}`);
   return i > -1 ? process.argv[i + 1] : predefinito;
 };
-const BASE = argomento("base", `http://localhost:${process.env.PORT ?? 5000}/api`);
+const BASE = argomento("base", `http://localhost:${process.env.PORT ?? 5001}/api`);
 const TAG = argomento("tag", "NFC-001");
 const SOLO = Number(argomento("passaggio", 0));
 
@@ -2426,19 +2656,29 @@ process.exit(falliti === 0 ? 0 : 1);
 
 ```javascript
 import "dotenv/config"; // carica le variabili d'ambiente dal file .env (deve restare il primo import)
-import { connectDB } from "./config/db.js";
+import { connectDB, spiegaErroreMongo } from "./config/db.js";
 import { creaApp } from "./app.js";
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 
 // --- Avvio del server dopo la connessione al DB ---
 try {
   await connectDB();
-  creaApp().listen(PORT, () => {
+  const server = creaApp().listen(PORT, () => {
     console.log(`Server in ascolto sulla porta ${PORT} (blockchain: ${process.env.BLOCKCHAIN_MODE ?? "mock"})`);
+  });
+  server.on("error", (err) => {
+    console.error(
+      err.code === "EADDRINUSE"
+        ? `La porta ${PORT} è già occupata: il server è forse già acceso in un altro terminale (chiudilo), oppure cambia PORT nel file .env.`
+        : `Errore del server: ${err.message}`
+    );
+    process.exit(1);
   });
 } catch (err) {
   console.error("Errore di avvio:", err.message);
+  const consiglio = spiegaErroreMongo(err);
+  if (consiglio !== err.message) console.error(`→ ${consiglio}`);
   process.exit(1); // interrompe l'avvio se il DB non è raggiungibile
 }
 ```
@@ -2601,49 +2841,130 @@ export function reimpostaBlockchain() {
  * REGISTRO BLOCKCHAIN SIMULATO (mock)
  * -----------------------------------
  * Imita il comportamento dello smart contract RegenLuxuryPassport senza rete,
- * wallet né commissioni: le "transazioni" vengono scritte in un file JSON che
- * fa da registro append-only. Come sulla blockchain reale:
+ * wallet né commissioni: le "transazioni" vengono scritte in un registro
+ * append-only. Come sulla blockchain reale:
  *  - un tag può essere registrato una sola volta (anti-clonazione);
  *  - lo storico accetta solo aggiunte (nessuna cancellazione);
- *  - il file sopravvive ai riavvii e NON dipende dal database.
+ *  - il registro sopravvive ai riavvii.
+ * Dove vive il registro (MOCK_LEDGER_STORE):
+ *  - "file" (predefinito): file JSON separato dal database (MOCK_LEDGER_FILE);
+ *  - "mongo": collezione "registro_simulato" dello stesso cluster. Serve per la
+ *    demo online gratuita (su Render i file si cancellano a ogni riavvio) e per
+ *    condividere lo stesso registro tra il Mac e il sito online. È meno
+ *    indipendente dal database del file: in produzione si usa Polygon.
  */
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
+import mongoose from "mongoose";
 import { improntaTag } from "../hashService.js";
 
 const RETE = "mock-polygon";
 const file = () => path.resolve(process.env.MOCK_LEDGER_FILE ?? "./data/mock-ledger.json");
+const suMongo = () => (process.env.MOCK_LEDGER_STORE ?? "file").toLowerCase() === "mongo";
 const latenza = () => Number(process.env.MOCK_CHAIN_LATENCY_MS ?? 300);
 const attendi = (ms) => new Promise((r) => setTimeout(r, ms));
+const vuoto = () => ({ blocco: 1_000_000, prossimoToken: 1, capi: {} });
 
-let coda = Promise.resolve(); // le scritture sono serializzate, come i blocchi
-
-async function leggi() {
+async function leggiFile() {
   try {
     return JSON.parse(await fs.readFile(file(), "utf8"));
   } catch (err) {
-    if (err.code === "ENOENT") return { blocco: 1_000_000, prossimoToken: 1, capi: {} };
+    if (err.code === "ENOENT") return vuoto();
     throw err;
   }
 }
 
-async function scrivi(stato) {
-  const destinazione = file();
-  await fs.mkdir(path.dirname(destinazione), { recursive: true });
-  const temporaneo = `${destinazione}.${process.pid}.tmp`;
-  await fs.writeFile(temporaneo, JSON.stringify(stato, null, 2));
-  await fs.rename(temporaneo, destinazione);
+// --- Registro su file ---
+const archivioFile = {
+  leggi: leggiFile,
+  async aggiorna(operazione) {
+    const stato = await leggiFile();
+    operazione(stato);
+    const destinazione = file();
+    await fs.mkdir(path.dirname(destinazione), { recursive: true });
+    const temporaneo = `${destinazione}.${process.pid}.tmp`;
+    await fs.writeFile(temporaneo, JSON.stringify(stato, null, 2));
+    await fs.rename(temporaneo, destinazione);
+    return stato;
+  },
+};
+
+// --- Registro su MongoDB: un solo documento con numero di versione, così due
+// server (es. Mac e Render) non si sovrascrivono le scritture a vicenda ---
+const ID = "stato";
+const collezione = () => mongoose.connection.db.collection("registro_simulato");
+
+async function salvaConVersione(modifica) {
+  for (let tentativo = 0; tentativo < 8; tentativo++) {
+    const doc = (await collezione().findOne({ _id: ID })) ?? { _id: ID, versione: 0, ...vuoto(), nuovo: true };
+    const { _id, versione, nuovo, ...stato } = doc;
+    if (modifica(stato) === false) return stato; // nulla da salvare
+    try {
+      const esito = await collezione().replaceOne({ _id: ID, versione }, { ...stato, versione: versione + 1 }, { upsert: Boolean(nuovo) });
+      if (esito.matchedCount === 1 || esito.upsertedCount === 1) return stato;
+    } catch (err) {
+      if (err.code !== 11000) throw err; // 11000: un altro server ha creato il documento nello stesso istante
+    }
+    await attendi(20 + Math.random() * 80);
+  }
+  throw new Error("Registro simulato occupato: riprova tra poco");
 }
+
+// Una volta per avvio: porta nel database i capi del vecchio registro su file (se esiste)
+let fileUnito = false;
+async function unisciFileLocale() {
+  if (fileUnito) return;
+  fileUnito = true;
+  const locale = await leggiFile().catch(() => vuoto());
+  const voci = Object.entries(locale.capi ?? {});
+  if (voci.length === 0) return;
+  let importati = 0;
+  await salvaConVersione((stato) => {
+    const mancanti = voci.filter(([chiave]) => !stato.capi[chiave]);
+    if (mancanti.length === 0) return false;
+    const usati = new Set(Object.values(stato.capi).map((c) => c.tokenId));
+    for (const [chiave, voce] of mancanti) {
+      const tokenId = usati.has(voce.tokenId) ? Math.max(stato.prossimoToken, ...usati) + 1 : voce.tokenId;
+      usati.add(tokenId);
+      stato.capi[chiave] = { ...voce, tokenId };
+      stato.prossimoToken = Math.max(stato.prossimoToken, tokenId + 1);
+    }
+    stato.blocco = Math.max(stato.blocco, locale.blocco ?? 0);
+    importati = mancanti.length;
+    return true;
+  });
+  if (importati) console.log(`Registro simulato: ${importati} capi importati dal file locale nel database`);
+}
+
+const archivioMongo = {
+  async leggi() {
+    await unisciFileLocale();
+    const doc = await collezione().findOne({ _id: ID });
+    if (!doc) return vuoto();
+    const { _id, versione, ...stato } = doc;
+    return stato;
+  },
+  async aggiorna(operazione) {
+    await unisciFileLocale();
+    return salvaConVersione((stato) => {
+      operazione(stato);
+    });
+  },
+};
+
+const archivio = () => (suMongo() ? archivioMongo : archivioFile);
+
+let coda = Promise.resolve(); // le scritture sono serializzate, come i blocchi
 
 function transazione(operazione) {
   const esegui = async () => {
     await attendi(latenza()); // simula il tempo di validazione del blocco
-    const stato = await leggi();
-    operazione(stato); // può lanciare errori (revert)
-    stato.blocco += 1;
+    const stato = await archivio().aggiorna((s) => {
+      operazione(s); // può lanciare errori (revert)
+      s.blocco += 1;
+    });
     const txHash = "0x" + crypto.createHash("sha256").update(crypto.randomUUID()).digest("hex");
-    await scrivi(stato);
     return { txHash, blocco: stato.blocco, rete: RETE };
   };
   const risultato = coda.then(esegui, esegui);
@@ -2686,7 +3007,7 @@ export default {
 
   // Lettura gratuita (nessuna transazione)
   async leggiRegistro(tagId) {
-    const voce = (await leggi()).capi[improntaTag(tagId)];
+    const voce = (await archivio().leggi()).capi[improntaTag(tagId)];
     if (!voce) return { registrato: false, tokenId: null, dataHash: null, storico: [] };
     return { registrato: true, tokenId: voce.tokenId, dataHash: voce.dataHash, storico: [...voce.storico] };
   },
@@ -2983,7 +3304,8 @@ export async function verificaIntegrita(item) {
 // QR code con l'URL pubblico di verifica del capo (strategia duale NFC + QR).
 import QRCode from "qrcode";
 
-const base = () => (process.env.PUBLIC_BASE_URL ?? "http://localhost:5173").replace(/\/+$/, "");
+// Su Render l'indirizzo pubblico arriva da solo (RENDER_EXTERNAL_URL)
+const base = () => (process.env.PUBLIC_BASE_URL || process.env.RENDER_EXTERNAL_URL || "http://localhost:5173").replace(/\/+$/, "");
 
 export const urlVerifica = (tagId) => `${base()}/v/${encodeURIComponent(tagId)}`;
 
@@ -3226,6 +3548,7 @@ export async function avviaAmbiente(env = {}) {
     NODE_ENV: "test",
     JWT_SECRET: "segreto-di-test",
     BLOCKCHAIN_MODE: "mock",
+    MOCK_LEDGER_STORE: "file",
     MOCK_LEDGER_FILE: path.join(os.tmpdir(), `ledger-${id}.json`),
     MOCK_CHAIN_LATENCY_MS: "5",
     RATE_LIMIT_VERIFY_PER_MIN: "10000",
@@ -3429,6 +3752,69 @@ describe("Gestione capi: creazione, validazione, endpoint (punti 8-9)", () => {
   it("ID non valido -> 400; endpoint inesistente -> 404", async () => {
     assert.equal((await request(app).get("/api/items/abc").set(auth(token.admin))).status, 400);
     assert.equal((await request(app).get("/api/nulla")).status, 404);
+  });
+});
+```
+
+## `backend/test/registro-mongo.test.js`
+
+```javascript
+// Registro simulato salvato su MongoDB (demo online su Render)
+import { describe, it, before, after } from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import request from "supertest";
+import mongoose from "mongoose";
+import { avviaAmbiente, creaUtenti, auth, capoDiProva, attendiAncoraggi } from "./helpers.js";
+import { improntaTag } from "../services/hashService.js";
+
+describe("Registro simulato su MongoDB", () => {
+  let env, app, token;
+  before(async () => {
+    env = await avviaAmbiente({ MOCK_LEDGER_STORE: "mongo" });
+    // vecchio registro su file con un capo già registrato: deve essere importato nel database
+    await fs.writeFile(
+      process.env.MOCK_LEDGER_FILE,
+      JSON.stringify({ blocco: 1_000_010, prossimoToken: 2, capi: { [improntaTag("NFC-FILE")]: { tokenId: 1, dataHash: "0xabc", storico: [] } } })
+    );
+    app = env.app;
+    token = await creaUtenti(app);
+  });
+  after(() => env.chiudi());
+
+  it("importa il registro su file, registra i nuovi capi nel database e la verifica risulta integra", async () => {
+    const r = await request(app).post("/api/items").set(auth(token.commerciante)).send(capoDiProva("NFC-900"));
+    assert.equal(r.status, 201);
+    await request(app).post(`/api/items/${r.body._id}/eventi`).set(auth(token.artigiano)).send({ tipo: "riparazione", descrizione: "Cuciture" });
+    await attendiAncoraggi();
+
+    const v = await request(app).get("/api/verify/NFC-900");
+    assert.equal(v.status, 200);
+    assert.equal(v.body.certificatoAutenticita.integrita.stato, "verificato");
+
+    const doc = await mongoose.connection.db.collection("registro_simulato").findOne({ _id: "stato" });
+    assert.ok(doc.versione >= 3, "ogni transazione aumenta la versione");
+    assert.ok(doc.capi[improntaTag("NFC-900")], "il nuovo capo è nel registro su database");
+    assert.equal(doc.capi[improntaTag("NFC-FILE")].tokenId, 1, "il capo del file è stato importato");
+    assert.equal(doc.capi[improntaTag("NFC-900")].tokenId, 2, "i token non si sovrappongono");
+  });
+
+  it("un tag già registrato nel registro importato non si può riusare", async () => {
+    const r = await request(app).post("/api/items").set(auth(token.commerciante)).send(capoDiProva("NFC-FILE"));
+    assert.equal(r.status, 409);
+  });
+
+  it("modifiche concorrenti di due server non si perdono (controllo di versione)", async () => {
+    const { default: registro } = await import("../services/blockchain/mockLedger.js");
+    const col = mongoose.connection.db.collection("registro_simulato");
+    const prima = await col.findOne({ _id: "stato" });
+    // un "altro server" aggiunge un capo mentre questo registra il suo
+    const altro = col.updateOne({ _id: "stato" }, { $set: { [`capi.${improntaTag("NFC-ALTRO")}`]: { tokenId: 99, dataHash: "0x1", storico: [] } }, $inc: { versione: 1 } });
+    const mio = registro.registraCapo({ tagId: "NFC-MIO", dataHash: "0x2" });
+    await Promise.all([altro, mio]);
+    const dopo = await col.findOne({ _id: "stato" });
+    assert.ok(dopo.capi[improntaTag("NFC-ALTRO")] && dopo.capi[improntaTag("NFC-MIO")]);
+    assert.ok(dopo.versione >= prima.versione + 2);
   });
 });
 ```
@@ -3640,7 +4026,7 @@ describe("Verifica pubblica, integrità e limiti (punti 8, 10, 13)", () => {
 param(
     [Parameter(Mandatory = $true)][string]$Email,
     [int]$Passaggio = 0,
-    [string]$BaseUrl = "http://localhost:5000/api",
+    [string]$BaseUrl = "http://localhost:5001/api",
     [string]$TagId = "NFC-001",
     [string]$Password = ""   # se vuoto viene chiesta in modo nascosto
 )
@@ -4284,6 +4670,44 @@ I prezzi cambiano di continuo: nella tesi va indicato un valore **con data e fon
    al giorno per tutti gli eventi → costo quasi indipendente dal numero di capi (sviluppo futuro).
 ```
 
+## `docs/crediti-foto.md`
+
+```markdown
+# Crediti delle foto e dei font della web app
+
+## Foto dei caroselli della home
+
+Foto decorative ospitate da Unsplash e caricate direttamente dal loro server (`images.unsplash.com`),
+con la **licenza Unsplash** (uso gratuito, anche commerciale, senza obbligo di attribuzione:
+<https://unsplash.com/license>). Sono state scelte foto senza loghi in evidenza: la licenza non copre
+marchi e loghi, che restano dei rispettivi titolari. Elenco in `frontend/src/data/foto.js`.
+
+| Fascia | Didascalia | Pagina della foto |
+|---|---|---|
+| I capi | Giacca in pelle | https://unsplash.com/photos/nsRBbE6-YLs |
+| I capi | Borsa in pelle | https://unsplash.com/photos/oCXVxwTFwqE |
+| I capi | Pelle vissuta | https://unsplash.com/photos/3OFBcQQTN64 |
+| I capi | Trench e accessori | https://unsplash.com/photos/W-7k72ThEr0 |
+| I capi | Tracolla in pelle | https://unsplash.com/photos/ZB4eQcNqVUs |
+| I capi | Montoni vintage | https://unsplash.com/photos/eTCogYz7kQE |
+| La rigenerazione | Laboratorio sartoriale | https://unsplash.com/photos/TAZUc51iPUM |
+| La rigenerazione | Boutique vintage | https://unsplash.com/photos/vFcfeKAKGlg |
+| La rigenerazione | La vetrina | https://unsplash.com/photos/bUg7Fdq6nXo |
+| La rigenerazione | Cucitura di precisione | https://unsplash.com/photos/jNKv4QohAk0 |
+| La rigenerazione | Seconda vita | https://unsplash.com/photos/UdQt3FT6rxM |
+| La rigenerazione | Riparazione | https://unsplash.com/photos/F14VKsS0iL8 |
+| La rigenerazione | Pelle rigenerata | https://unsplash.com/photos/KgjNOmuTlNw |
+| La rigenerazione | Filati e forbici | https://unsplash.com/photos/tX62O5F3AfU |
+
+Se una foto non si carica (offline o rimossa), al suo posto resta un riquadro scuro con la didascalia.
+Per la demo o per la stampa si possono sostituire con foto proprie: basta cambiare gli indirizzi in `foto.js`.
+
+## Font
+
+**Cormorant Garamond** (titoli), Copyright 2015 The Cormorant Project Authors, **SIL Open Font License 1.1**.
+File `.woff2` (sottoinsieme latino) e testo della licenza in `frontend/src/assets/fonts/`.
+```
+
 ## `docs/decisioni/4.2-custodia-e-commissioni.md`
 
 ```markdown
@@ -4376,42 +4800,52 @@ il portatile con la web app aperta sull'area gestionale.
 Serve un indirizzo **HTTPS pubblico** perché il telefono, leggendo il tag o il QR, apra la pagina di verifica
 (e perché la fotocamera del browser funzioni fuori da `localhost`).
 
-**Soluzione proposta:** un solo servizio su **Render** (piano gratuito, regione Frankfurt): il backend espone le
-API e serve la web app React compilata. Il file `render.yaml` nella radice del repository configura tutto.
+**Soluzione:** un solo servizio su **Render** (piano gratuito, regione Frankfurt): il backend espone le API e
+serve la web app React compilata. Il file `render.yaml` nella radice del repository configura tutto.
 Controlla sul sito di Render le condizioni attuali del piano gratuito prima della demo.
 
-## Prerequisiti
+## Come funziona la versione online
 
-1. Repository su GitHub (punto 3) con `package-lock.json` inclusi.
-2. MongoDB Atlas: in **Network Access** il piano gratuito di Render non ha un IP fisso, quindi serve
-   `0.0.0.0/0` (accesso da qualsiasi IP, protetto da utente e password del database). È un compromesso
-   accettabile per un prototipo: dichiaralo come limite.
-3. Blockchain: sul piano gratuito il disco è temporaneo, quindi il registro **simulato** si perderebbe a ogni
-   riavvio. Per la versione pubblica usa **Polygon Amoy**: `npm run crea-wallet`, POL di prova dal faucet,
-   `npm run deploy` (cartella `contracts/`).
+- **Database:** lo stesso cluster Atlas usato sul Mac → sul sito online si vedono gli stessi capi.
+- **Blockchain:** per ora registro **simulato** salvato nel database (`MOCK_LEDGER_STORE=mongo`), perché su
+  Render il disco si cancella a ogni riavvio. Anche il Mac usa lo stesso registro su database, così Mac e sito
+  online restano allineati (al primo avvio il vecchio file `backend/data/mock-ledger.json` viene importato).
+  Limite da dichiarare: il registro simulato su database è meno indipendente del file; nella versione finale si
+  passa a **Polygon Amoy** (vedi in fondo).
+- **Indirizzo pubblico:** il backend usa da solo quello assegnato da Render (`RENDER_EXTERNAL_URL`) per QR e link.
 
-## Passi su Render
+## Passi (una volta sola)
 
-1. Accedi a https://render.com con GitHub → **New → Blueprint** → scegli il repository `regen-luxury`.
-2. Render legge `render.yaml` e chiede i valori segreti:
-   - `MONGO_URI` → stringa di connessione Atlas (database `regen_luxury`)
-   - `PUBLIC_BASE_URL` → l'indirizzo che Render assegna, es. `https://regen-luxury.onrender.com`
-   - `CONTRACT_ADDRESS` e `PLATFORM_PRIVATE_KEY` → dal deploy su Amoy (la chiave solo qui, mai nel repository)
-   - `JWT_SECRET` viene generato automaticamente
-3. Dopo il primo deploy: apri `https://<indirizzo>/api/health` → `{"stato":"online",...}`.
-4. Crea l'account amministratore dal tuo computer, puntando al database di produzione:
-   `cd backend && npm run crea-admin` (con `MONGO_URI` di Atlas nel `.env` locale).
-5. Esegui `npm run migra` una volta, così i capi già presenti vengono registrati sul contratto di Amoy.
-6. Aggiorna `PUBLIC_BASE_URL` e **ristampa le etichette QR**; riscrivi i tag NFC con il nuovo dominio.
+1. **Codice su GitHub** — in VS Code: pannello *Controllo del codice sorgente* → **Pubblica in GitHub** →
+   **repository privato**. Per gli aggiornamenti successivi: *Sincronizza modifiche*.
+2. **Atlas** — *Security → Network Access → Add IP Address → Allow access from anywhere* (`0.0.0.0/0`) →
+   **Confirm**. Il piano gratuito di Render non ha un IP fisso; l'accesso resta protetto da utente e password del
+   database. Compromesso accettabile per un prototipo: dichiaralo come limite.
+3. **Render** — https://render.com → *Get Started* → accedi con **GitHub** → autorizza l'accesso al repository
+   `regen-luxury` → **New → Blueprint** → scegli il repository. Render legge `render.yaml` e chiede un solo valore:
+   - `MONGO_URI` → nel terminale `npm run copia-db` (la copia negli appunti senza mostrarla) → **Cmd+V**.
+   Poi **Apply / Deploy Blueprint**. `JWT_SECRET` viene generato automaticamente.
+4. Aspetta la fine della build (3–5 minuti, log in *Events/Logs*). Il sito è all'indirizzo mostrato in alto,
+   es. `https://regen-luxury.onrender.com`. Controllo: `https://<indirizzo>/api/health` → `{"stato":"online",…}`.
+5. Gli account sono gli stessi del Mac (stesso database): accedi con la tua email e password.
+
+**Aggiornare il sito:** fai commit e *Sincronizza modifiche* in VS Code; Render ripubblica da solo a ogni push.
 
 ## Da sapere per la demo
 
-- Il servizio gratuito **si sospende dopo circa 15 minuti** senza visite: la prima richiesta può richiedere
-  quasi un minuto. Apri la pagina qualche minuto prima della discussione. Le misure del requisito P
-  (< 2 s) vanno fatte con il servizio già attivo.
-- In alternativa, per la sola demo in aula: backend e web app sul Mac e telefono sulla stessa rete Wi-Fi
-  (`npm run dev` nel frontend mostra l'indirizzo di rete), ma senza HTTPS la fotocamera del telefono non si
-  apre nel browser; il tag NFC e i link funzionano comunque.
+- Il servizio gratuito **si sospende dopo circa 15 minuti** senza visite: la prima apertura può richiedere
+  quasi un minuto. Aprilo qualche minuto prima di mostrarlo. Le misure del requisito P (< 2 s) vanno fatte con
+  il servizio già attivo.
+- Le foto della home arrivano da Unsplash: servono Internet e la CSP del backend le ammette (`images.unsplash.com`).
+- "Il tuo armadio" e lo storico restano nel browser di chi visita il sito: ognuno vede i propri.
+
+## Più avanti: blockchain reale su Polygon Amoy
+
+1. `cd contracts && npm run crea-wallet` → POL di prova dal faucet → `npm run deploy`.
+2. Su Render (*Environment*): `BLOCKCHAIN_MODE=polygon`, `POLYGON_RPC_URL=https://rpc-amoy.polygon.technology`,
+   `CHAIN_NAME=polygon-amoy`, `CONTRACT_ADDRESS`, `PLATFORM_PRIVATE_KEY` (la chiave solo lì, mai nel repository).
+3. `npm run migra` una volta, così i capi già presenti vengono registrati sul contratto.
+4. Ristampa le etichette QR e riscrivi i tag NFC con il dominio definitivo.
 ```
 
 ## `docs/latex/bibliografia-starter.bib`
@@ -4758,8 +5192,9 @@ UC8 ..> UC4 : <<extend>>
 # Validazione: requisiti FURPS+ → test → esiti (punti 25 e 26)
 
 Colonna **Esito (prova di sviluppo)**: test eseguiti il 22/09/2026 in ambiente di sviluppo (database locale,
-blockchain simulata e chain locale Hardhat per lo smart contract). Colonna **Esito sul Mac con Atlas**: da
-compilare dopo aver eseguito gli stessi comandi con il database reale (servono per il Capitolo 5).
+blockchain simulata e chain locale Hardhat per lo smart contract). Colonna **Esito sul Mac con Atlas**: prove
+del 22/09/2026 sul Mac mini (Node.js 24, MongoDB Atlas, blockchain simulata) con `npm run passaggi` (8/8 superati)
+e `npm run misura-tempi`. Legenda: ✅ verificato · ⏭️ ancora da provare in questo ambiente · — non dipende dal database.
 
 Come rieseguire tutto:
 
@@ -4775,30 +5210,31 @@ cd ../ai-module && python -m pytest test/    # servizio AI
 
 | Req. | Requisito (§3.2) | Come è verificato | Esito (prova di sviluppo) | Esito sul Mac con Atlas |
 |---|---|---|---|---|
-| F | Creazione dell'identità digitale del capo | `items.test.js` "crea un capo…"; Passaggio 2 | ✅ 201, registrazione on-chain confermata | |
-| F | Associazione hardware-software (tag ↔ capo) | tagId univoco; `sun.test.js` associazione chip; etichetta QR (`items.test.js` "QR code") | ✅ | |
-| F | Registrazione degli interventi di rigenerazione | `items.test.js` "eventi…"; Passaggio 3 | ✅ evento salvato e ancorato | |
-| F | Certificato di autenticità con catena dei proprietari | `verify.test.js` "certificato pubblico…"; Passaggi 5, 6, 8 | ✅ | |
-| F | Dashboard di sostenibilità (CO₂, acqua) | `verify.test.js`: jeans → 12 kg CO₂e, 1.753 L con fonti; categoria senza dati → "non disponibile" | ✅ | |
-| U | Interfaccia mobile-first | Test nel browser (Chromium, schermo 390×844): home, certificato, gestione, etichetta, NFC | ✅ schermate in `docs/validazione/schermate/` | |
-| U | Accesso pubblico senza registrazione | Passaggio 6 (verifica senza token) | ✅ | |
-| R | Immutabilità / rilevazione delle manomissioni | `verify.test.js`: modifica di un evento, dei dati del capo e cancellazione di un passaggio direttamente nel database → "manomesso"; stesso test su smart contract reale | ✅ rilevate tutte e 3 le manomissioni | |
-| R | Anti-duplicazione del tag | `items.test.js` anti-replay (anche 3 richieste simultanee: 1×201, 2×409); Passaggio 7; tag eliminato non riusabile | ✅ | |
-| R | Anti-replay del chip NFC (chip clonato) | `sun.test.js`: vettore NXP AN12196, stesso URL riusato → 409, CMAC alterato → 400 | ✅ | |
-| R | Accesso controllato all'area gestionale | `auth.test.js`: 401 senza login, 403 per ruolo non ammesso, account disattivato | ✅ | |
-| R | Dati in ingresso validi | `items.test.js` "validazione…": campi mancanti, tagId non valido, campi sconosciuti, anno futuro, JSON malformato → 400 | ✅ | |
-| R | Protezione da abusi | `verify.test.js` limite di richieste → 429 | ✅ | |
-| P | Risposta alla scansione < 2 s | `npm run misura-tempi` (50 richieste) | ✅ media 5,7 ms, max 79 ms (database locale) | media ___ ms, max ___ ms |
-| P | Scritture blockchain asincrone | risposta immediata con stato "in_attesa", poi "confermato" (Passaggio 2) | ✅ | |
-| S | Provider blockchain sostituibile | stessi Passaggi 1–8 con `BLOCKCHAIN_MODE=mock` e con `BLOCKCHAIN_MODE=polygon` (contratto su chain locale) | ✅ 8/8 in entrambi i modi | |
-| + | Stack open-source/LTS, licenze permissive | Node.js, Express, MongoDB, React, ethers.js, OpenZeppelin (MIT), TextileNet (CC BY) | ✅ | |
-| + | Dati conformi al Passaporto Digitale del Prodotto (bozza) | Campi: brand, modello, materiali, filiera, anno, storico interventi e proprietà | ⚠️ allineamento concettuale: i requisiti di dettaglio per il tessile arriveranno con gli atti delegati ESPR | |
-| — | Smart contract: tag duplicato e ruoli | `npm run misura-gas`: `TagAlreadyRegistered`, `AccessControlUnauthorizedAccount` | ✅ | |
-| — | Modulo AI: servizio di inferenza | `ai-module/test`: modello ONNX fittizio, errori 415/400/413/503 | ✅ servizio; ❌ addestramento da eseguire su Colab | |
+| F | Creazione dell'identità digitale del capo | `items.test.js` "crea un capo…"; Passaggio 2 | ✅ 201, registrazione on-chain confermata || ✅ 201, registrazione on-chain confermata |
+| F | Associazione hardware-software (tag ↔ capo) | tagId univoco; `sun.test.js` associazione chip; etichetta QR (`items.test.js` "QR code") | ✅ || ✅ tag NFC-001 associato e univoco · ⏭️ QR e chip NFC |
+| F | Registrazione degli interventi di rigenerazione | `items.test.js` "eventi…"; Passaggio 3 | ✅ evento salvato e ancorato || ✅ evento salvato e ancorato |
+| F | Certificato di autenticità con catena dei proprietari | `verify.test.js` "certificato pubblico…"; Passaggi 5, 6, 8 | ✅ || ✅ certificato con catena dei proprietari |
+| F | Dashboard di sostenibilità (CO₂, acqua) | `verify.test.js`: jeans → 12 kg CO₂e, 1.753 L con fonti; categoria senza dati → "non disponibile" | ✅ || ✅ categoria senza dati (giacca) → "non disponibile" · ⏭️ jeans |
+| U | Interfaccia mobile-first | Test nel browser (Chromium, schermo 390×844): home, certificato, gestione, etichetta, NFC | ✅ schermate in `docs/validazione/schermate/` || ⏭️ da provare nel browser (`npm run web`) |
+| U | Accesso pubblico senza registrazione | Passaggio 6 (verifica senza token) | ✅ || ✅ |
+| R | Immutabilità / rilevazione delle manomissioni | `verify.test.js`: modifica di un evento, dei dati del capo e cancellazione di un passaggio direttamente nel database → "manomesso"; stesso test su smart contract reale | ✅ rilevate tutte e 3 le manomissioni || ✅ integrità "verificato" (Passaggio 8) · ⏭️ manomissione simulata |
+| R | Anti-duplicazione del tag | `items.test.js` anti-replay (anche 3 richieste simultanee: 1×201, 2×409); Passaggio 7; tag eliminato non riusabile | ✅ || ✅ 409 sul tag duplicato |
+| R | Anti-replay del chip NFC (chip clonato) | `sun.test.js`: vettore NXP AN12196, stesso URL riusato → 409, CMAC alterato → 400 | ✅ || — serve il chip fisico |
+| R | Accesso controllato all'area gestionale | `auth.test.js`: 401 senza login, 403 per ruolo non ammesso, account disattivato | ✅ || ✅ 401 senza login |
+| R | Dati in ingresso validi | `items.test.js` "validazione…": campi mancanti, tagId non valido, campi sconosciuti, anno futuro, JSON malformato → 400 | ✅ || — controllo prima del database |
+| R | Protezione da abusi | `verify.test.js` limite di richieste → 429 | ✅ || — non dipende dal database |
+| P | Risposta alla scansione < 2 s | `npm run misura-tempi` (50 richieste) | ✅ media 5,7 ms, max 79 ms (database locale) | ✅ media 37,9 ms, 95° percentile 41,9 ms, max 68 ms (50 richieste) |
+| P | Scritture blockchain asincrone | risposta immediata con stato "in_attesa", poi "confermato" (Passaggio 2) | ✅ || ✅ 2 voci confermate, 0 in attesa |
+| S | Provider blockchain sostituibile | stessi Passaggi 1–8 con `BLOCKCHAIN_MODE=mock` e con `BLOCKCHAIN_MODE=polygon` (contratto su chain locale) | ✅ 8/8 in entrambi i modi || ✅ 8/8 in modalità mock · ⏭️ polygon dopo il deploy su Amoy |
+| + | Stack open-source/LTS, licenze permissive | Node.js, Express, MongoDB, React, ethers.js, OpenZeppelin (MIT), TextileNet (CC BY) | ✅ || — |
+| + | Dati conformi al Passaporto Digitale del Prodotto (bozza) | Campi: brand, modello, materiali, filiera, anno, storico interventi e proprietà | ⚠️ allineamento concettuale: i requisiti di dettaglio per il tessile arriveranno con gli atti delegati ESPR || — |
+| — | Smart contract: tag duplicato e ruoli | `npm run misura-gas`: `TagAlreadyRegistered`, `AccessControlUnauthorizedAccount` | ✅ || — |
+| — | Modulo AI: servizio di inferenza | `ai-module/test`: modello ONNX fittizio, errori 415/400/413/503 | ✅ servizio; ❌ addestramento da eseguire su Colab || — |
 
 ## Limiti da dichiarare nel Capitolo 5
 
-- I test di sviluppo usano database e blockchain locali: i tempi reali vanno misurati con Atlas (colonna a destra).
+- I tempi con Atlas (media 37,9 ms contro 5,7 ms in locale) includono la latenza di rete verso il cluster, ma la
+  blockchain era ancora simulata: vanno rimisurati dopo il deploy del contratto su Polygon Amoy.
 - L'anticlonazione del chip è verificata con il vettore ufficiale NXP, non ancora con un chip fisico.
 - Il modulo AI non è ancora addestrato: accuratezza e matrice di confusione arriveranno dal notebook.
 - Con la custodia della piattaforma (decisione 4.2) la blockchain prova l'integrità dei dati, non l'identità
@@ -4881,6 +5317,7 @@ import { Routes, Route } from "react-router-dom";
 import Layout from "./components/Layout.jsx";
 import Protetta from "./components/Protetta.jsx";
 import HomePage from "./pages/HomePage.jsx";
+import ArmadioPage from "./pages/ArmadioPage.jsx";
 import VerifyPage from "./pages/VerifyPage.jsx";
 import SunPage from "./pages/SunPage.jsx";
 import ScanPage from "./pages/ScanPage.jsx";
@@ -4902,6 +5339,7 @@ export default function App() {
         <Route path="v/:tagId" element={<VerifyPage />} />
         <Route path="s" element={<SunPage />} />
         <Route path="scan" element={<ScanPage />} />
+        <Route path="armadio" element={<ArmadioPage />} />
         <Route path="login" element={<LoginPage />} />
 
         {/* Area gestionale (commercianti, artigiani, brand manager) */}
@@ -4923,6 +5361,104 @@ export default function App() {
     </Routes>
   );
 }
+```
+
+## `frontend/src/assets/fonts/OFL-cormorant-garamond.txt`
+
+```text
+Copyright 2015 The Cormorant Project Authors (github.com/CatharsisFonts/Cormorant) CormorantGaramond-Italic[wght].ttf: Copyright 2015 The Cormorant Project Authors (github.com/CatharsisFonts/Cormorant)
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+This license is copied below, and is also available with a FAQ at:
+http://scripts.sil.org/OFL
+
+
+-----------------------------------------------------------
+SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007
+-----------------------------------------------------------
+
+PREAMBLE
+The goals of the Open Font License (OFL) are to stimulate worldwide
+development of collaborative font projects, to support the font creation
+efforts of academic and linguistic communities, and to provide a free and
+open framework in which fonts may be shared and improved in partnership
+with others.
+
+The OFL allows the licensed fonts to be used, studied, modified and
+redistributed freely as long as they are not sold by themselves. The
+fonts, including any derivative works, can be bundled, embedded,
+redistributed and/or sold with any software provided that any reserved
+names are not used by derivative works. The fonts and derivatives,
+however, cannot be released under any other type of license. The
+requirement for fonts to remain under this license does not apply
+to any document created using the fonts or their derivatives.
+
+DEFINITIONS
+"Font Software" refers to the set of files released by the Copyright
+Holder(s) under this license and clearly marked as such. This may
+include source files, build scripts and documentation.
+
+"Reserved Font Name" refers to any names specified as such after the
+copyright statement(s).
+
+"Original Version" refers to the collection of Font Software components as
+distributed by the Copyright Holder(s).
+
+"Modified Version" refers to any derivative made by adding to, deleting,
+or substituting -- in part or in whole -- any of the components of the
+Original Version, by changing formats or by porting the Font Software to a
+new environment.
+
+"Author" refers to any designer, engineer, programmer, technical
+writer or other person who contributed to the Font Software.
+
+PERMISSION & CONDITIONS
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of the Font Software, to use, study, copy, merge, embed, modify,
+redistribute, and sell modified and unmodified copies of the Font
+Software, subject to the following conditions:
+
+1) Neither the Font Software nor any of its individual components,
+in Original or Modified Versions, may be sold by itself.
+
+2) Original or Modified Versions of the Font Software may be bundled,
+redistributed and/or sold with any software, provided that each copy
+contains the above copyright notice and this license. These can be
+included either as stand-alone text files, human-readable headers or
+in the appropriate machine-readable metadata fields within text or
+binary files as long as those fields can be easily viewed by the user.
+
+3) No Modified Version of the Font Software may use the Reserved Font
+Name(s) unless explicit written permission is granted by the corresponding
+Copyright Holder. This restriction only applies to the primary font name as
+presented to the users.
+
+4) The name(s) of the Copyright Holder(s) or the Author(s) of the Font
+Software shall not be used to promote, endorse or advertise any
+Modified Version, except to acknowledge the contribution(s) of the
+Copyright Holder(s) and the Author(s) or with their explicit written
+permission.
+
+5) The Font Software, modified or unmodified, in part or in whole,
+must be distributed entirely under this license, and must not be
+distributed under any other license. The requirement for fonts to
+remain under this license does not apply to any document created
+using the Font Software.
+
+TERMINATION
+This license becomes null and void if any of the above conditions are
+not met.
+
+DISCLAIMER
+THE FONT SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO ANY WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT
+OF COPYRIGHT, PATENT, TRADEMARK, OR OTHER RIGHT. IN NO EVENT SHALL THE
+COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+INCLUDING ANY GENERAL, SPECIAL, INDIRECT, INCIDENTAL, OR CONSEQUENTIAL
+DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
+OTHER DEALINGS IN THE FONT SOFTWARE.
 ```
 
 ## `frontend/src/components/Ancoraggio.jsx`
@@ -4950,10 +5486,50 @@ export default function Ancoraggio({ ancoraggio }) {
 }
 ```
 
+## `frontend/src/components/Carosello.jsx`
+
+```jsx
+// Fascia di foto che scorre all'infinito: l'elenco è ripetuto due volte e
+// l'animazione CSS lo sposta di metà lunghezza, così il giro non ha salti.
+// Decorativa: nascosta ai lettori di schermo; ferma con "riduci movimento".
+function Foto({ foto }) {
+  return (
+    <figure className="carosello-foto">
+      <img
+        src={foto.src}
+        alt=""
+        loading="lazy"
+        decoding="async"
+        onError={(e) => e.currentTarget.parentElement.classList.add("foto-assente")}
+      />
+      <figcaption>{foto.didascalia}</figcaption>
+    </figure>
+  );
+}
+
+export default function Carosello({ foto, verso = "avanti", orientamento = "verticale", etichetta }) {
+  return (
+    <div className={`carosello carosello-${orientamento} carosello-${verso}`} aria-hidden="true">
+      {etichetta && <p className="carosello-etichetta">{etichetta}</p>}
+      <div className="carosello-finestra">
+        <div className="carosello-traccia">
+          {[...foto, ...foto].map((f, i) => (
+            <Foto key={`${f.id}-${i}`} foto={f} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+```
+
 ## `frontend/src/components/Certificato.jsx`
 
 ```jsx
+import { Link } from "react-router-dom";
 import Ancoraggio from "./Ancoraggio.jsx";
+import { IconaGruccia } from "./Icone.jsx";
+import { aggiungiAllArmadio, riassuntoCapo, rimuoviDallArmadio, useArmadio } from "../utils/archivio.js";
 import { TIPI_EVENTO, data, hashBreve, numero, maiuscola } from "../utils/formato.js";
 
 const ESITI = {
@@ -4981,6 +5557,36 @@ function Esito({ certificato, nfc }) {
           </p>
         )}
       </div>
+    </div>
+  );
+}
+
+// "Aggiungi al mio armadio": solo per capi autentici; l'elenco resta sul dispositivo
+function AzioniArmadio({ dati }) {
+  const armadio = useArmadio();
+  const { tagId } = dati.capo;
+  if (ESITI[dati.certificatoAutenticita.integrita.stato]?.classe === "ko") return null;
+  const presente = armadio.some((c) => c.tagId === tagId);
+  return (
+    <div className="azioni-armadio">
+      {presente ? (
+        <>
+          <span className="nel-armadio">
+            <IconaGruccia dimensione={20} /> Nel tuo armadio
+          </span>
+          <Link to="/armadio">Apri l’armadio</Link>
+          <button type="button" className="link" onClick={() => rimuoviDallArmadio(tagId)}>
+            Rimuovi
+          </button>
+        </>
+      ) : (
+        <>
+          <button type="button" className="pulsante" onClick={() => aggiungiAllArmadio(riassuntoCapo(dati))}>
+            <IconaGruccia dimensione={20} /> Aggiungi al mio armadio
+          </button>
+          <span className="nota">Hai acquistato questo capo? Conservane il passaporto su questo dispositivo.</span>
+        </>
+      )}
     </div>
   );
 }
@@ -5043,6 +5649,7 @@ export default function Certificato({ dati }) {
       </header>
 
       <Esito certificato={cert} nfc={nfc} />
+      <AzioniArmadio dati={dati} />
 
       <section className="sezione">
         <h3>Scheda del capo</h3>
@@ -5144,34 +5751,136 @@ export default function Certificato({ dati }) {
 }
 ```
 
+## `frontend/src/components/Icone.jsx`
+
+```jsx
+// Icone lineari (SVG in linea: nessuna libreria esterna)
+const Base = ({ children, dimensione = 22, ...resto }) => (
+  <svg width={dimensione} height={dimensione} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"
+    strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false" {...resto}>
+    {children}
+  </svg>
+);
+
+export const IconaScansione = (p) => (
+  <Base {...p}>
+    <path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3" />
+    <path d="M7 12h10" />
+  </Base>
+);
+export const IconaScudo = (p) => (
+  <Base {...p}>
+    <path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6l7-3z" />
+    <path d="M9 12l2 2 4-4" />
+  </Base>
+);
+export const IconaAgo = (p) => (
+  <Base {...p}>
+    <path d="M19 5L7 17M16 4l4 4M5 19c1-2 2-3 4-3" />
+    <path d="M14 6c-4 0-9 3-9 8" strokeDasharray="2 2.5" />
+  </Base>
+);
+export const IconaFoglia = (p) => (
+  <Base {...p}>
+    <path d="M5 19c0-8 5-13 14-14 0 9-5 14-13 14" />
+    <path d="M5 19l7-7" />
+  </Base>
+);
+export const IconaGruccia = (p) => (
+  <Base {...p}>
+    <path d="M12 7a2 2 0 1 1 2-2c0 1.2-2 1.5-2 3v1" />
+    <path d="M12 9L3 16a1 1 0 0 0 .6 1.8h16.8A1 1 0 0 0 21 16l-9-7z" />
+  </Base>
+);
+export const IconaOrologio = (p) => (
+  <Base {...p}>
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="M12 7.5V12l3 2" />
+  </Base>
+);
+export const IconaUtente = (p) => (
+  <Base {...p}>
+    <circle cx="12" cy="8.5" r="3.5" />
+    <path d="M5 20c1-3.5 3.8-5 7-5s6 1.5 7 5" />
+  </Base>
+);
+export const IconaChip = (p) => (
+  <Base {...p}>
+    <path d="M6 8.5a8 8 0 0 1 0 7M9.5 6.5a12 12 0 0 1 0 11M13 5a15 15 0 0 1 0 14" />
+    <rect x="16" y="9" width="4" height="6" rx="1" />
+  </Base>
+);
+export const IconaCestino = (p) => (
+  <Base {...p}>
+    <path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-12M9 7V4h6v3" />
+  </Base>
+);
+export const IconaFreccia = (p) => (
+  <Base {...p}>
+    <path d="M5 12h14M13 6l6 6-6 6" />
+  </Base>
+);
+```
+
 ## `frontend/src/components/Layout.jsx`
 
 ```jsx
-import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
+import { useEffect, useRef } from "react";
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth.jsx";
+import { useArmadio } from "../utils/archivio.js";
+import StoricoMenu from "./StoricoMenu.jsx";
+import { IconaGruccia, IconaScansione, IconaUtente } from "./Icone.jsx";
 
 export default function Layout() {
   const { utente, logout } = useAuth();
+  const armadio = useArmadio();
   const naviga = useNavigate();
+  const { pathname } = useLocation();
+  const testata = useRef(null);
+
+  // Altezza reale della testata in una variabile CSS (serve alle fasce fisse della home)
+  useEffect(() => {
+    const el = testata.current;
+    if (!el || typeof ResizeObserver === "undefined") return undefined;
+    const aggiorna = () => document.documentElement.style.setProperty("--h-testata", `${el.offsetHeight}px`);
+    aggiorna();
+    const osservatore = new ResizeObserver(aggiorna);
+    osservatore.observe(el);
+    return () => osservatore.disconnect();
+  }, []);
 
   return (
     <div className="pagina">
-      <header className="testata">
-        <Link to="/" className="marchio" aria-label="Regen Luxury, home">
-          <span className="marchio-segno" aria-hidden="true">R</span>
-          <span>
+      <header ref={testata} className={`testata${utente ? " testata-operatore" : ""}`}>
+        <div className="testata-vuoto" aria-hidden="true" />
+        <Link to="/" className="marchio" aria-label="Regen Luxury, torna alla home">
+          <span className="marchio-nome">
             Regen <em>Luxury</em>
           </span>
+          <span className="marchio-motto">Passaporto digitale · moda rigenerata</span>
         </Link>
-        <nav className="menu">
-          <NavLink to="/scan">Verifica</NavLink>
+        <nav className="menu" aria-label="Menu principale">
+          <NavLink to="/scan" className="menu-voce">
+            <IconaScansione dimensione={18} />
+            <span>Verifica</span>
+          </NavLink>
+          <NavLink to="/armadio" className="menu-voce">
+            <IconaGruccia dimensione={18} />
+            <span className="testo-lungo">Il tuo armadio</span>
+            <span className="testo-corto">Armadio</span>
+            {armadio.length > 0 && <span className="contatore">{armadio.length}</span>}
+          </NavLink>
+          <StoricoMenu />
           {utente ? (
             <>
-              <NavLink to="/gestione" end>
-                Gestione
+              <NavLink to="/gestione" className="menu-voce">
+                <IconaUtente dimensione={18} />
+                <span>Gestione</span>
               </NavLink>
               <button
-                className="link"
+                type="button"
+                className="menu-voce menu-esci"
                 onClick={() => {
                   logout();
                   naviga("/");
@@ -5181,15 +5890,22 @@ export default function Layout() {
               </button>
             </>
           ) : (
-            <NavLink to="/login">Accedi</NavLink>
+            <NavLink to="/login" className="menu-voce">
+              <IconaUtente dimensione={18} />
+              <span>Accedi</span>
+            </NavLink>
           )}
         </nav>
       </header>
-      <main className="contenuto">
+      <main className={pathname === "/" ? "contenuto contenuto-home" : "contenuto"}>
         <Outlet />
       </main>
       <footer className="piede">
+        <p className="piede-marchio">
+          Regen <em>Luxury</em>
+        </p>
         <p>Passaporto digitale dei capi rigenerati · prototipo di tesi, Politecnico di Bari</p>
+        <p className="piede-crediti">Foto decorative: Unsplash (licenza Unsplash) · I marchi citati appartengono ai rispettivi titolari</p>
       </footer>
     </div>
   );
@@ -5375,6 +6091,129 @@ export function Errore({ errore, titolo = "Qualcosa non ha funzionato" }) {
 }
 ```
 
+## `frontend/src/components/StoricoMenu.jsx`
+
+```jsx
+import { useEffect, useRef, useState } from "react";
+import { Link, useLocation } from "react-router-dom";
+import { useStorico, svuotaStorico } from "../utils/archivio.js";
+import { ESITO_BREVE, tempoFa } from "../utils/formato.js";
+import { IconaOrologio } from "./Icone.jsx";
+
+// Voce "Storico" della testata: si apre a tendina con le ultime verifiche
+export default function StoricoMenu() {
+  const storico = useStorico();
+  const [aperto, setAperto] = useState(false);
+  const contenitore = useRef(null);
+  const { pathname } = useLocation();
+
+  useEffect(() => setAperto(false), [pathname]);
+  useEffect(() => {
+    if (!aperto) return undefined;
+    const fuori = (e) => !contenitore.current?.contains(e.target) && setAperto(false);
+    const esc = (e) => e.key === "Escape" && setAperto(false);
+    document.addEventListener("pointerdown", fuori);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("pointerdown", fuori);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [aperto]);
+
+  return (
+    <div className="menu-tendina" ref={contenitore}>
+      <button
+        type="button"
+        className={`menu-voce${aperto ? " active" : ""}`}
+        aria-expanded={aperto}
+        aria-controls="tendina-storico"
+        onClick={() => setAperto((a) => !a)}
+      >
+        <IconaOrologio dimensione={18} />
+        <span>Storico</span>
+        {storico.length > 0 && <span className="contatore">{storico.length}</span>}
+        <span className="freccina" aria-hidden="true">▾</span>
+      </button>
+
+      {aperto && (
+        <div className="tendina" id="tendina-storico" role="region" aria-label="Storico delle verifiche">
+          <div className="tendina-testa">
+            <strong>Le tue verifiche</strong>
+            <span>salvate solo su questo dispositivo</span>
+          </div>
+          {storico.length === 0 ? (
+            <p className="tendina-vuota">Nessuna verifica per ora. Scansiona il QR code o il tag NFC di un capo: lo ritroverai qui.</p>
+          ) : (
+            <ul className="tendina-elenco">
+              {storico.slice(0, 8).map((v) => {
+                const esito = ESITO_BREVE[v.esito] ?? ESITO_BREVE.non_registrato;
+                return (
+                  <li key={v.tagId}>
+                    <Link to={`/v/${encodeURIComponent(v.tagId)}`} className="voce-storico">
+                      <span className="voce-testo">
+                        <strong>{v.brand ?? "Codice sconosciuto"}</strong>
+                        <span>
+                          {v.codiceModello ?? v.tagId} · {tempoFa(v.data)}
+                          {v.volte > 1 && ` · ${v.volte} verifiche`}
+                        </span>
+                      </span>
+                      <span className={`bollino bollino-${esito.classe}`}>{esito.testo}</span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          <div className="tendina-piede">
+            <Link to="/scan">Nuova verifica</Link>
+            {storico.length > 0 && (
+              <button type="button" className="link" onClick={svuotaStorico}>
+                Cancella storico
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+## `frontend/src/data/foto.js`
+
+```javascript
+/*
+ * Foto decorative dei caroselli della home: Unsplash, licenza Unsplash
+ * (uso gratuito, anche commerciale; https://unsplash.com/license).
+ * Scelte senza loghi in evidenza: i marchi restano dei rispettivi titolari.
+ * Crediti completi in docs/crediti-foto.md.
+ */
+const unsplash = (id, larghezza = 360, altezza = 480) =>
+  `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=${larghezza}&h=${altezza}&q=70`;
+
+// Fascia sinistra: i capi e gli accessori
+export const FOTO_CAPI = [
+  { id: "1551028719-00167b16eac5", didascalia: "Giacca in pelle", pagina: "nsRBbE6-YLs" },
+  { id: "1584917865442-de89df76afd3", didascalia: "Borsa in pelle", pagina: "oCXVxwTFwqE" },
+  { id: "1623854156816-4c4fc355ffc7", didascalia: "Pelle vissuta", pagina: "3OFBcQQTN64" },
+  { id: "1589363358751-ab05797e5629", didascalia: "Trench e accessori", pagina: "W-7k72ThEr0" },
+  { id: "1559563458-527698bf5295", didascalia: "Tracolla in pelle", pagina: "ZB4eQcNqVUs" },
+  { id: "1559551409-dadc959f76b8", didascalia: "Montoni vintage", pagina: "eTCogYz7kQE" },
+].map((f) => ({ ...f, src: unsplash(f.id) }));
+
+// Fascia destra: rigenerazione, laboratori e boutique
+export const FOTO_RIGENERAZIONE = [
+  { id: "1606501126768-b78d4569d3f9", didascalia: "Laboratorio sartoriale", pagina: "TAZUc51iPUM" },
+  { id: "1621261027519-a71ac66d5a68", didascalia: "Boutique vintage", pagina: "vFcfeKAKGlg" },
+  { id: "1621785847991-884bae1f95f1", didascalia: "La vetrina", pagina: "bUg7Fdq6nXo" },
+  { id: "1497997092403-f091fcf5b6c4", didascalia: "Cucitura di precisione", pagina: "jNKv4QohAk0" },
+  { id: "1596484552993-aec4311d3381", didascalia: "Seconda vita", pagina: "UdQt3FT6rxM" },
+  { id: "1641320197434-6ae0ca235048", didascalia: "Riparazione", pagina: "F14VKsS0iL8" },
+  { id: "1760533091973-1262bf57d244", didascalia: "Pelle rigenerata", pagina: "KgjNOmuTlNw" },
+  { id: "1578353022142-09264fd64295", didascalia: "Filati e forbici", pagina: "tX62O5F3AfU" },
+].map((f) => ({ ...f, src: unsplash(f.id) }));
+```
+
 ## `frontend/src/hooks/useAuth.jsx`
 
 ```jsx
@@ -5501,6 +6340,114 @@ export default function AccountPage() {
 }
 ```
 
+## `frontend/src/pages/ArmadioPage.jsx`
+
+```jsx
+import { Link } from "react-router-dom";
+import { useArmadio, rimuoviDallArmadio } from "../utils/archivio.js";
+import { ESITO_BREVE, data, iniziali, maiuscola, numero } from "../utils/formato.js";
+import { IconaFoglia, IconaGruccia, IconaScansione } from "../components/Icone.jsx";
+
+export default function ArmadioPage() {
+  const armadio = useArmadio();
+  const co2 = armadio.reduce((s, c) => s + (c.co2Kg ?? 0), 0);
+  const acqua = armadio.reduce((s, c) => s + (c.acquaL ?? 0), 0);
+
+  return (
+    <section className="armadio">
+      <header className="pagina-testa">
+        <p className="sopratitolo">Il tuo armadio</p>
+        <h1>I capi che hai scelto, con la loro storia.</h1>
+        <p className="pagina-intro">
+          Aggiungi qui i capi verificati che hai acquistato: ritrovi in un tocco il loro passaporto digitale. L’elenco resta
+          solo su questo dispositivo, senza account e senza inviare dati.
+        </p>
+      </header>
+
+      {armadio.length === 0 ? (
+        <div className="armadio-vuoto">
+          <span className="armadio-vuoto-icona">
+            <IconaGruccia dimensione={40} />
+          </span>
+          <h2>Il tuo armadio è ancora vuoto</h2>
+          <p>Verifica un capo e, nel suo certificato, premi «Aggiungi al mio armadio».</p>
+          <Link to="/scan" className="pulsante pulsante-grande">
+            <IconaScansione dimensione={20} /> Verifica un capo
+          </Link>
+        </div>
+      ) : (
+        <>
+          <dl className="riepilogo">
+            <div>
+              <dt>Capi</dt>
+              <dd>{armadio.length}</dd>
+            </div>
+            <div>
+              <dt>CO₂ evitata</dt>
+              <dd>
+                {numero(co2)} <small>kg</small>
+              </dd>
+            </div>
+            <div>
+              <dt>Acqua preservata</dt>
+              <dd>
+                {numero(acqua, 0)} <small>L</small>
+              </dd>
+            </div>
+          </dl>
+          {armadio.some((c) => c.co2Kg == null) && (
+            <p className="nota">Per alcune categorie di capi la stima ambientale non è ancora disponibile.</p>
+          )}
+
+          <ul className="armadio-griglia">
+            {armadio.map((c) => {
+              const esito = ESITO_BREVE[c.esito] ?? ESITO_BREVE.non_registrato;
+              return (
+                <li key={c.tagId} className="capo-carta">
+                  <div className="capo-monogramma" aria-hidden="true">
+                    {iniziali(c.brand)}
+                  </div>
+                  <div className="capo-info">
+                    <p className="sopratitolo">
+                      {maiuscola(c.categoria ?? "capo")}
+                      {c.materialePrincipale && ` · ${c.materialePrincipale}`}
+                    </p>
+                    <h2>{c.brand}</h2>
+                    <p>
+                      {c.codiceModello}
+                      {c.annoProduzione && ` · ${c.annoProduzione}`}
+                    </p>
+                    <p className="capo-dettagli">
+                      <span className={`bollino bollino-${esito.classe}`}>{esito.testo}</span>
+                      {c.co2Kg != null && (
+                        <span className="capo-impatto">
+                          <IconaFoglia dimensione={16} /> {numero(c.co2Kg)} kg CO₂e evitati
+                        </span>
+                      )}
+                    </p>
+                    <p className="nota">
+                      Tag {c.tagId} · nel tuo armadio dal {data(c.aggiuntoIl)}
+                    </p>
+                  </div>
+                  <div className="capo-azioni">
+                    <Link className="pulsante" to={`/v/${encodeURIComponent(c.tagId)}`}>
+                      Rivedi il certificato
+                    </Link>
+                    <button type="button" className="link link-pericolo" onClick={() => rimuoviDallArmadio(c.tagId)}>
+                      Rimuovi
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
+    </section>
+  );
+}
+```
+
 ## `frontend/src/pages/DashboardPage.jsx`
 
 ```jsx
@@ -5594,7 +6541,7 @@ export default function DashboardPage() {
                     {capo.stato === "archiviato" && <span className="etichetta">Archiviato</span>}
                   </span>
                   <span className="nota">
-                    {capo.storicoRigenerazione?.length ?? 0} interventi · creato il {data(capo.createdAt)}
+                    {capo.storicoRigenerazione?.length ?? 0} {(capo.storicoRigenerazione?.length ?? 0) === 1 ? "intervento" : "interventi"} · creato il {data(capo.createdAt)}
                   </span>
                   <Ancoraggio ancoraggio={capo.registrazione} />
                 </Link>
@@ -5626,6 +6573,33 @@ export default function DashboardPage() {
 ```jsx
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import Carosello from "../components/Carosello.jsx";
+import { FOTO_CAPI, FOTO_RIGENERAZIONE } from "../data/foto.js";
+import { IconaAgo, IconaChip, IconaFoglia, IconaFreccia, IconaGruccia, IconaScansione, IconaScudo } from "../components/Icone.jsx";
+
+const PASSI = [
+  { titolo: "Scansiona", testo: "Avvicina il telefono al tag NFC cucito nel capo oppure inquadra il QR code dell’etichetta." },
+  { titolo: "Scopri la storia", testo: "Autenticità, interventi di rigenerazione, proprietari precedenti e impatto ambientale evitato." },
+  { titolo: "Conservalo", testo: "Se lo acquisti, aggiungilo al tuo armadio: il suo passaporto resta a portata di mano." },
+];
+
+const CARATTERISTICHE = [
+  {
+    Icona: IconaScudo,
+    titolo: "Autenticità",
+    testo: "I dati del capo sono confrontati con le impronte registrate sulla blockchain Polygon: ogni modifica non autorizzata viene rilevata.",
+  },
+  {
+    Icona: IconaAgo,
+    titolo: "Rigenerazione",
+    testo: "Riparazioni, upcycling e sostituzioni di parti, con i materiali impiegati e il laboratorio artigiano che li ha eseguiti.",
+  },
+  {
+    Icona: IconaFoglia,
+    titolo: "Sostenibilità",
+    testo: "Stima della CO₂ e dell’acqua risparmiate rispetto a un capo nuovo, con le fonti scientifiche utilizzate.",
+  },
+];
 
 export default function HomePage() {
   const [codice, setCodice] = useState("");
@@ -5633,50 +6607,94 @@ export default function HomePage() {
   const valido = /^[A-Za-z0-9_-]{3,64}$/.test(codice.trim());
 
   return (
-    <>
-      <section className="eroe">
-        <p className="sopratitolo">Moda di lusso rigenerata</p>
-        <h1>La storia di ogni capo, verificabile in un tocco.</h1>
-        <p>
-          Avvicina il telefono al tag NFC cucito nel capo oppure inquadra il QR code: vedrai autenticità, interventi di
-          rigenerazione, passaggi di proprietà e impatto ambientale evitato. Senza app e senza registrazione.
-        </p>
-        <Link to="/scan" className="pulsante">
-          Inquadra il QR code
-        </Link>
-      </section>
+    <div className="home">
+      <aside className="home-fascia">
+        <Carosello foto={FOTO_CAPI} verso="avanti" etichetta="I capi" />
+      </aside>
 
-      <section className="scheda">
-        <h2>Hai il codice del tag?</h2>
-        <form
-          className="modulo modulo-in-linea"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (valido) naviga(`/v/${encodeURIComponent(codice.trim())}`);
-          }}
-        >
-          <input value={codice} onChange={(e) => setCodice(e.target.value)} placeholder="es. NFC-001" aria-label="Codice del tag" />
-          <button className="pulsante" disabled={!valido}>
-            Verifica
-          </button>
-        </form>
-      </section>
+      <div className="home-centro">
+        <section className="eroe">
+          <p className="sopratitolo">Moda di lusso rigenerata</p>
+          <h1>
+            La storia di ogni capo, <em>verificabile in un tocco.</em>
+          </h1>
+          <p className="eroe-testo">
+            Avvicina il telefono al tag NFC cucito nel capo oppure inquadra il QR code: vedrai autenticità, interventi di
+            rigenerazione, passaggi di proprietà e impatto ambientale evitato. Senza app e senza registrazione.
+          </p>
+          <div className="eroe-azioni">
+            <Link to="/scan" className="pulsante pulsante-grande">
+              <IconaScansione dimensione={20} /> Verifica un capo
+            </Link>
+            <Link to="/armadio" className="pulsante pulsante-grande pulsante-secondario">
+              <IconaGruccia dimensione={20} /> Il tuo armadio
+            </Link>
+          </div>
+          <ul className="garanzie">
+            <li>
+              <IconaScudo dimensione={18} /> Registro su blockchain
+            </li>
+            <li>
+              <IconaChip dimensione={18} /> Chip NFC anticlonazione
+            </li>
+            <li>
+              <IconaFoglia dimensione={18} /> Impatto ambientale con fonti
+            </li>
+          </ul>
+        </section>
 
-      <section className="griglia-tre">
-        <div>
-          <h3>Autenticità</h3>
-          <p>I dati del capo sono confrontati con le impronte registrate sulla blockchain Polygon: ogni modifica non autorizzata è rilevata.</p>
-        </div>
-        <div>
-          <h3>Rigenerazione</h3>
-          <p>Riparazioni, upcycling e sostituzioni di parti, con i materiali impiegati e il laboratorio che li ha eseguiti.</p>
-        </div>
-        <div>
-          <h3>Sostenibilità</h3>
-          <p>Stima della CO₂ e dell’acqua risparmiate rispetto a un capo nuovo, con le fonti scientifiche usate.</p>
-        </div>
-      </section>
-    </>
+        <Carosello foto={[...FOTO_CAPI, ...FOTO_RIGENERAZIONE]} orientamento="orizzontale" />
+
+        <section className="scheda scheda-codice">
+          <div>
+            <h2>Hai il codice del tag?</h2>
+            <p className="nota">Lo trovi sull’etichetta del capo, sotto il QR code.</p>
+          </div>
+          <form
+            className="modulo modulo-in-linea"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (valido) naviga(`/v/${encodeURIComponent(codice.trim())}`);
+            }}
+          >
+            <input value={codice} onChange={(e) => setCodice(e.target.value)} placeholder="es. NFC-001" aria-label="Codice del tag" />
+            <button className="pulsante" disabled={!valido}>
+              Verifica <IconaFreccia dimensione={18} />
+            </button>
+          </form>
+        </section>
+
+        <section className="come-funziona">
+          <p className="sopratitolo">Come funziona</p>
+          <h2>Tre gesti, nessuna app da installare</h2>
+          <ol className="passi">
+            {PASSI.map((p, i) => (
+              <li key={p.titolo}>
+                <span className="passi-numero">{i + 1}</span>
+                <h3>{p.titolo}</h3>
+                <p>{p.testo}</p>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        <section className="caratteristiche">
+          {CARATTERISTICHE.map(({ Icona, titolo, testo }) => (
+            <article key={titolo}>
+              <span className="caratteristica-icona">
+                <Icona dimensione={26} />
+              </span>
+              <h3>{titolo}</h3>
+              <p>{testo}</p>
+            </article>
+          ))}
+        </section>
+      </div>
+
+      <aside className="home-fascia">
+        <Carosello foto={FOTO_RIGENERAZIONE} verso="indietro" etichetta="La rigenerazione" />
+      </aside>
+    </div>
   );
 }
 ```
@@ -6221,6 +7239,16 @@ import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../services/api.js";
 import Certificato from "../components/Certificato.jsx";
 import { Caricamento, Errore } from "../components/Stato.jsx";
+import { aggiornaNellArmadio, registraVerifica, riassuntoCapo } from "../utils/archivio.js";
+
+// Una sola richiesta per link: il link del chip vale una volta (anti-replay) e in
+// sviluppo React esegue gli effetti due volte, quindi la richiesta viene condivisa.
+const richieste = new Map();
+function verificaLink(e, c) {
+  const chiave = `${e}|${c}`;
+  if (!richieste.has(chiave)) richieste.set(chiave, api(`/verify/sun?e=${encodeURIComponent(e)}&c=${encodeURIComponent(c)}`));
+  return richieste.get(chiave);
+}
 
 // Pagina aperta dal chip NTAG 424 DNA: /s?e=<dati cifrati>&c=<codice di autenticazione>
 export default function SunPage() {
@@ -6230,9 +7258,19 @@ export default function SunPage() {
   const [stato, setStato] = useState({ caricamento: true });
 
   useEffect(() => {
-    api(`/verify/sun?e=${encodeURIComponent(e)}&c=${encodeURIComponent(c)}`)
-      .then((dati) => setStato({ dati }))
-      .catch((errore) => setStato({ errore }));
+    let attivo = true;
+    verificaLink(e, c)
+      .then((dati) => {
+        if (!attivo) return;
+        setStato({ dati });
+        const riassunto = riassuntoCapo(dati);
+        registraVerifica(riassunto);
+        aggiornaNellArmadio(riassunto);
+      })
+      .catch((errore) => attivo && setStato({ errore }));
+    return () => {
+      attivo = false;
+    };
   }, [e, c]);
 
   if (stato.caricamento) return <Caricamento testo="Verifica del chip in corso…" />;
@@ -6398,6 +7436,7 @@ import { Link, useParams } from "react-router-dom";
 import { api } from "../services/api.js";
 import Certificato from "../components/Certificato.jsx";
 import { Caricamento, Errore } from "../components/Stato.jsx";
+import { aggiornaNellArmadio, registraVerifica, riassuntoCapo } from "../utils/archivio.js";
 
 export default function VerifyPage() {
   const { tagId } = useParams();
@@ -6407,8 +7446,18 @@ export default function VerifyPage() {
     let attivo = true;
     setStato({ caricamento: true });
     api(`/verify/${encodeURIComponent(tagId)}`)
-      .then((dati) => attivo && setStato({ dati }))
-      .catch((errore) => attivo && setStato({ errore }));
+      .then((dati) => {
+        if (!attivo) return;
+        setStato({ dati });
+        const riassunto = riassuntoCapo(dati);
+        registraVerifica(riassunto); // storico sul dispositivo
+        aggiornaNellArmadio(riassunto);
+      })
+      .catch((errore) => {
+        if (!attivo) return;
+        setStato({ errore });
+        if (errore.status === 404) registraVerifica({ tagId, brand: null, codiceModello: null, esito: "non_trovato" });
+      });
     return () => {
       attivo = false;
     };
@@ -6521,14 +7570,23 @@ export async function classificaFoto(file) {
 ## `frontend/src/styles/app.css`
 
 ```css
-/* Regen Luxury — stile mobile-first. Palette: avorio, inchiostro, oro. */
+/* Regen Luxury — stile mobile-first. Palette: nero inchiostro, avorio, oro. */
+
+/* Font dei titoli: Cormorant Garamond (SIL Open Font License, file in src/assets/fonts) */
+@font-face { font-family: "Cormorant Garamond"; font-style: normal; font-weight: 500; font-display: swap; src: url("../assets/fonts/cormorant-garamond-latin-500-normal.woff2") format("woff2"); }
+@font-face { font-family: "Cormorant Garamond"; font-style: normal; font-weight: 600; font-display: swap; src: url("../assets/fonts/cormorant-garamond-latin-600-normal.woff2") format("woff2"); }
+@font-face { font-family: "Cormorant Garamond"; font-style: normal; font-weight: 700; font-display: swap; src: url("../assets/fonts/cormorant-garamond-latin-700-normal.woff2") format("woff2"); }
+@font-face { font-family: "Cormorant Garamond"; font-style: italic; font-weight: 500; font-display: swap; src: url("../assets/fonts/cormorant-garamond-latin-500-italic.woff2") format("woff2"); }
+
 :root {
-  --avorio: #f7f4ee;
-  --carta: #fffdf9;
+  --nero: #141311;
   --inchiostro: #1c1b19;
+  --avorio: #f6f2ea;
+  --carta: #fffdf8;
   --grigio: #6b665e;
-  --linea: #e4ddd1;
+  --linea: #e6dfd2;
   --oro: #a8843f;
+  --oro-vivo: #c9a25c;
   --oro-chiaro: #f3ead9;
   --verde: #2f6b4f;
   --verde-chiaro: #e6f1eb;
@@ -6536,9 +7594,10 @@ export async function classificaFoto(file) {
   --ambra-chiaro: #faf0dc;
   --rosso: #a23b2c;
   --rosso-chiaro: #f8e7e3;
-  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  --display: "Cormorant Garamond", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --raggio: 14px;
+  --raggio: 16px;
+  --ombra: 0 1px 2px rgba(20, 19, 17, 0.04), 0 12px 32px rgba(20, 19, 17, 0.07);
 }
 
 * { box-sizing: border-box; }
@@ -6547,68 +7606,271 @@ body {
   margin: 0;
   background: var(--avorio);
   color: var(--inchiostro);
-  font: 16px/1.55 var(--sans);
+  font: 17px/1.6 var(--sans);
+  -webkit-font-smoothing: antialiased;
 }
-h1, h2, h3 { font-family: var(--serif); font-weight: 600; line-height: 1.2; margin: 0 0 0.5rem; }
-h1 { font-size: clamp(1.7rem, 5vw, 2.4rem); }
-h2 { font-size: 1.35rem; }
-h3 { font-size: 1.1rem; }
+h1, h2, h3 { font-family: var(--display); font-weight: 600; line-height: 1.12; letter-spacing: 0.005em; margin: 0 0 0.5rem; }
+/* Cormorant usa numeri "all'antica" (1 simile a I): qui servono numeri allineati */
+h1, h2, h3, .riepilogo dd, .indicatore .valore, .passi-numero, .marchio-nome, .tendina-testa strong { font-variant-numeric: lining-nums; }
+h1 { font-size: clamp(2.1rem, 6vw, 3rem); }
+h2 { font-size: 1.75rem; }
+h3 { font-size: 1.35rem; }
 p { margin: 0 0 0.75rem; }
 a { color: var(--inchiostro); text-decoration-color: var(--oro); text-underline-offset: 3px; }
 code { font-size: 0.85em; background: var(--oro-chiaro); padding: 0.1em 0.35em; border-radius: 6px; word-break: break-all; }
 
 .pagina { min-height: 100vh; display: flex; flex-direction: column; }
-.contenuto { width: 100%; max-width: 760px; margin: 0 auto; padding: 1.25rem 1rem 3rem; flex: 1; }
+.contenuto { width: 100%; max-width: 820px; margin: 0 auto; padding: 1.75rem 1.1rem 4rem; flex: 1; }
+.contenuto-home { max-width: 1500px; padding-top: 1rem; }
 
-/* Testata */
+/* ---------- Testata: fascia nera, titolo al centro, menu a destra ---------- */
 .testata {
-  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
-  padding: 0.8rem 1rem; background: var(--inchiostro); color: var(--avorio);
-  position: sticky; top: 0; z-index: 10;
+  position: sticky; top: 0; z-index: 20;
+  display: grid; grid-template-columns: 1fr; justify-items: center; gap: 0.6rem;
+  padding: 1rem 1rem 0.75rem;
+  background: var(--nero); color: var(--avorio);
+  border-bottom: 1px solid rgba(201, 162, 92, 0.35);
 }
-.marchio { display: flex; align-items: center; gap: 0.6rem; color: inherit; text-decoration: none; font-family: var(--serif); font-size: 1.15rem; }
-.marchio em { color: #c9a25c; font-style: italic; }
-.marchio-segno { width: 32px; height: 32px; border-radius: 9px; border: 2px solid #c9a25c; display: grid; place-items: center; font-weight: 700; color: #c9a25c; }
-.menu { display: flex; gap: 1rem; align-items: center; }
-.menu a, .menu .link { color: var(--avorio); text-decoration: none; font-size: 0.95rem; opacity: 0.85; }
-.menu a.active { opacity: 1; border-bottom: 2px solid #c9a25c; }
-.piede { text-align: center; color: var(--grigio); font-size: 0.8rem; padding: 1.5rem 1rem; border-top: 1px solid var(--linea); }
+.testata-vuoto { display: none; }
+.marchio { display: grid; justify-items: center; color: inherit; text-decoration: none; line-height: 1; }
+.marchio-nome { font-family: var(--display); font-weight: 600; font-size: clamp(2rem, 6.5vw, 3rem); letter-spacing: 0.02em; }
+.marchio-nome em { color: var(--oro-vivo); font-style: italic; font-weight: 500; }
+.marchio-motto { margin-top: 0.4rem; font-size: 0.64rem; letter-spacing: 0.24em; text-transform: uppercase; color: rgba(246, 242, 234, 0.6); }
 
-/* Blocchi */
-.scheda { background: var(--carta); border: 1px solid var(--linea); border-radius: var(--raggio); padding: 1.25rem; margin-bottom: 1rem; }
-.scheda-stretta { max-width: 460px; margin-left: auto; margin-right: auto; }
-.sezione { border-top: 1px solid var(--linea); padding-top: 1rem; margin-top: 1rem; }
-.sopratitolo { text-transform: uppercase; letter-spacing: 0.12em; font-size: 0.72rem; color: var(--oro); margin-bottom: 0.3rem; font-weight: 600; }
-.sottotitolo { color: var(--grigio); }
+.menu { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 0.25rem 0.35rem; }
+.menu-voce {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  padding: 0.45rem 0.8rem; border-radius: 999px; border: 1px solid transparent;
+  background: none; color: rgba(246, 242, 234, 0.82); text-decoration: none;
+  font: 500 0.95rem var(--sans); cursor: pointer; white-space: nowrap;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+.menu-voce:hover { color: #fff; border-color: rgba(201, 162, 92, 0.45); }
+.menu-voce.active { color: #fff; border-color: var(--oro-vivo); background: rgba(201, 162, 92, 0.14); }
+.menu-voce svg { color: var(--oro-vivo); }
+.menu-esci { color: rgba(246, 242, 234, 0.6); }
+.contatore {
+  display: inline-grid; place-items: center; min-width: 1.3rem; height: 1.3rem; padding: 0 0.35rem;
+  border-radius: 999px; background: var(--oro-vivo); color: var(--nero); font-size: 0.72rem; font-weight: 700;
+}
+.freccina { font-size: 0.7rem; opacity: 0.7; }
+.testo-corto { display: none; }
+
+@media (max-width: 540px) {
+  .testata { padding: 0.85rem 0.5rem 0.6rem; gap: 0.45rem; }
+  .marchio-motto { font-size: 0.56rem; letter-spacing: 0.22em; }
+  .menu { gap: 0.1rem; }
+  .menu-voce { padding: 0.4rem 0.55rem; font-size: 0.86rem; gap: 0.3rem; }
+  .menu-voce > svg { display: none; }
+  .testo-lungo { display: none; }
+  .testo-corto { display: inline; }
+}
+/* Su schermi larghi: titolo al centro e menu sulla destra, su una sola riga */
+@media (min-width: 1360px) {
+  .testata:not(.testata-operatore) { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 1.25rem; padding: 1.35rem 2rem; }
+  .testata:not(.testata-operatore) .testata-vuoto { display: block; }
+  .testata:not(.testata-operatore) .menu { justify-self: end; flex-wrap: nowrap; }
+}
+@media (min-width: 1600px) {
+  .testata-operatore { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 1.25rem; padding: 1.35rem 2rem; }
+  .testata-operatore .testata-vuoto { display: block; }
+  .testata-operatore .menu { justify-self: end; flex-wrap: nowrap; }
+}
+
+/* Etichetta breve "Armadio" dove lo spazio è poco (e sempre per gli operatori) */
+@media (min-width: 1360px) and (max-width: 1439px) { .testo-lungo { display: none; } .testo-corto { display: inline; } }
+.testata-operatore .testo-lungo { display: none; }
+.testata-operatore .testo-corto { display: inline; }
+
+/* Storico a tendina */
+.menu-tendina { position: relative; }
+.tendina {
+  position: fixed; left: 50%; transform: translateX(-50%); top: calc(var(--h-testata, 120px) + 0.5rem);
+  width: min(400px, calc(100vw - 1.5rem)); z-index: 30; overflow: hidden; text-align: left;
+  background: var(--carta); color: var(--inchiostro); border: 1px solid var(--linea); border-radius: 18px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+}
+@media (min-width: 1360px) {
+  .testata:not(.testata-operatore) .tendina { position: absolute; left: auto; right: 0; transform: none; top: calc(100% + 0.8rem); }
+}
+.tendina-testa { display: grid; padding: 1rem 1.15rem 0.75rem; border-bottom: 1px solid var(--linea); }
+.tendina-testa strong { font-family: var(--display); font-size: 1.45rem; line-height: 1.1; }
+.tendina-testa span { font-size: 0.78rem; color: var(--grigio); }
+.tendina-vuota { padding: 1rem 1.15rem; margin: 0; color: var(--grigio); font-size: 0.93rem; }
+.tendina-elenco { list-style: none; margin: 0; padding: 0.35rem 0; max-height: min(380px, 55vh); overflow-y: auto; }
+.voce-storico { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; padding: 0.65rem 1.15rem; color: inherit; text-decoration: none; }
+.voce-storico:hover { background: var(--avorio); }
+.voce-testo { display: grid; min-width: 0; }
+.voce-testo strong { font-size: 0.98rem; }
+.voce-testo span { font-size: 0.8rem; color: var(--grigio); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tendina-piede { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 0.75rem 1.15rem; border-top: 1px solid var(--linea); background: var(--avorio); font-size: 0.9rem; }
+
+.bollino { flex: none; display: inline-block; padding: 0.22rem 0.6rem; border-radius: 999px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+.bollino-ok { background: var(--verde-chiaro); color: var(--verde); }
+.bollino-attesa { background: var(--ambra-chiaro); color: var(--ambra); }
+.bollino-ko { background: var(--rosso-chiaro); color: var(--rosso); }
+
+/* ---------- Piede ---------- */
+.piede { text-align: center; color: var(--grigio); font-size: 0.84rem; padding: 2.2rem 1rem 2.6rem; border-top: 1px solid var(--linea); background: var(--carta); }
+.piede p { margin: 0.2rem 0; }
+.piede-marchio { font-family: var(--display); font-size: 1.6rem; font-weight: 600; color: var(--inchiostro); }
+.piede-marchio em { color: var(--oro); font-weight: 500; }
+.piede-crediti { font-size: 0.74rem; opacity: 0.8; }
+
+/* ---------- Blocchi comuni ---------- */
+.scheda { background: var(--carta); border: 1px solid var(--linea); border-radius: var(--raggio); padding: 1.35rem; margin-bottom: 1rem; box-shadow: var(--ombra); }
+.scheda-stretta { max-width: 470px; margin-left: auto; margin-right: auto; }
+.sezione { border-top: 1px solid var(--linea); padding-top: 1.1rem; margin-top: 1.1rem; }
+.sopratitolo { text-transform: uppercase; letter-spacing: 0.2em; font-size: 0.72rem; color: var(--oro); margin-bottom: 0.45rem; font-weight: 700; }
+.sottotitolo { color: var(--grigio); font-size: 1.05rem; }
 .leggero { font-weight: 400; color: var(--grigio); }
-.nota { color: var(--grigio); font-size: 0.88rem; }
+.nota { color: var(--grigio); font-size: 0.9rem; }
 .etichetta { display: inline-block; margin-left: 0.5rem; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; background: var(--oro-chiaro); color: var(--ambra); padding: 0.15rem 0.5rem; border-radius: 999px; vertical-align: middle; }
-
-.eroe { padding: 1.5rem 0 1rem; }
-.eroe h1 { font-size: clamp(1.9rem, 7vw, 3rem); margin-bottom: 0.8rem; }
-.eroe p { color: var(--grigio); max-width: 38rem; }
+.pagina-testa { padding: 1rem 0 1.5rem; }
+.pagina-testa h1 { font-size: clamp(2.3rem, 6.5vw, 3.5rem); line-height: 1.04; }
+.pagina-intro { font-size: 1.1rem; color: var(--grigio); max-width: 40rem; }
 .griglia-tre { display: grid; gap: 1rem; margin-top: 1rem; }
-.griglia-tre > div { background: var(--carta); border: 1px solid var(--linea); border-radius: var(--raggio); padding: 1rem; }
-.griglia-tre p { color: var(--grigio); font-size: 0.93rem; margin: 0; }
 @media (min-width: 680px) { .griglia-tre { grid-template-columns: repeat(3, 1fr); } }
 
-/* Pulsanti e moduli */
-.pulsante {
-  display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
-  min-height: 46px; padding: 0 1.2rem; border-radius: 999px; border: 1px solid var(--inchiostro);
-  background: var(--inchiostro); color: var(--avorio); font: 600 0.95rem var(--sans); text-decoration: none; cursor: pointer;
+/* ---------- Home ---------- */
+.home { display: grid; grid-template-columns: minmax(0, 1fr); }
+.home-fascia { display: none; }
+.home-centro { min-width: 0; }
+@media (min-width: 1100px) {
+  .home { grid-template-columns: 200px minmax(0, 1fr) 200px; gap: 3rem; }
+  .home-fascia {
+    display: block; position: sticky; align-self: start;
+    top: calc(var(--h-testata, 120px) + 1.25rem);
+    height: calc(100vh - var(--h-testata, 120px) - 2.5rem);
+  }
+  .home-centro { width: 100%; max-width: 820px; margin: 0 auto; }
+  .carosello-orizzontale { display: none; }
 }
+@media (min-width: 1440px) { .home { grid-template-columns: 250px minmax(0, 1fr) 250px; gap: 4rem; } }
+
+.eroe { padding: 2.2rem 0 1.5rem; }
+.eroe h1 { font-size: clamp(2.6rem, 7.5vw, 4.6rem); line-height: 1.02; letter-spacing: -0.005em; margin-bottom: 1.2rem; }
+.eroe h1 em { color: var(--oro); font-weight: 500; }
+.eroe-testo { font-size: clamp(1.08rem, 2.3vw, 1.28rem); line-height: 1.6; color: var(--grigio); max-width: 42rem; }
+.eroe-azioni { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 1.7rem 0 1.5rem; }
+@media (max-width: 540px) { .eroe { padding-top: 1.2rem; } .eroe-azioni .pulsante { width: 100%; } }
+.garanzie { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.55rem 1.4rem; color: var(--grigio); font-size: 0.93rem; }
+.garanzie li { display: inline-flex; align-items: center; gap: 0.45rem; }
+.garanzie svg { color: var(--oro); }
+
+.scheda-codice { display: grid; gap: 1rem; padding: 1.6rem; margin: 1rem 0 3.5rem; }
+.scheda-codice h2 { margin-bottom: 0.15rem; }
+.scheda-codice .nota { margin: 0; }
+.scheda-codice .modulo { margin: 0; }
+.scheda-codice input { min-height: 54px; font-size: 1.05rem; }
+.scheda-codice .pulsante { min-height: 54px; }
+@media (min-width: 760px) { .scheda-codice { grid-template-columns: 1fr 1.25fr; align-items: center; gap: 2rem; } }
+
+.come-funziona { margin: 0 0 3.5rem; }
+.come-funziona h2 { font-size: clamp(1.9rem, 4.5vw, 2.7rem); margin-bottom: 1.4rem; }
+.passi { list-style: none; margin: 0; padding: 0; display: grid; gap: 1rem; }
+@media (min-width: 720px) { .passi { grid-template-columns: repeat(3, 1fr); } }
+.passi li { background: var(--carta); border: 1px solid var(--linea); border-radius: var(--raggio); padding: 1.4rem 1.3rem 1.3rem; box-shadow: var(--ombra); }
+.passi-numero { display: block; font-family: var(--display); font-size: 2.8rem; line-height: 1; color: var(--oro); margin-bottom: 0.5rem; }
+.passi h3 { font-size: 1.55rem; }
+.passi p { color: var(--grigio); margin: 0; font-size: 0.98rem; }
+
+.caratteristiche { display: grid; gap: 1px; background: rgba(201, 162, 92, 0.3); border-radius: 24px; overflow: hidden; margin-bottom: 1rem; }
+@media (min-width: 760px) { .caratteristiche { grid-template-columns: repeat(3, 1fr); } }
+.caratteristiche article { background: var(--nero); color: var(--avorio); padding: 1.9rem 1.6rem; }
+.caratteristiche h3 { font-size: 1.75rem; color: #fff; margin: 1rem 0 0.5rem; }
+.caratteristiche p { margin: 0; color: rgba(246, 242, 234, 0.74); font-size: 0.98rem; }
+.caratteristica-icona { display: grid; place-items: center; width: 54px; height: 54px; border-radius: 50%; border: 1px solid rgba(201, 162, 92, 0.6); color: var(--oro-vivo); }
+
+/* Caroselli di foto */
+.carosello { display: flex; flex-direction: column; height: 100%; }
+.carosello-etichetta { margin: 0 0 0.8rem; text-align: center; font: 700 0.68rem var(--sans); letter-spacing: 0.3em; text-transform: uppercase; color: var(--oro); }
+.carosello-finestra {
+  flex: 1; overflow: hidden; border-radius: 20px;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 7%, #000 93%, transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 7%, #000 93%, transparent);
+}
+.carosello-traccia { display: flex; flex-direction: column; gap: 14px; animation: scorri-verticale 70s linear infinite; }
+.carosello-indietro .carosello-traccia { animation-direction: reverse; }
+.carosello:hover .carosello-traccia { animation-play-state: paused; }
+@keyframes scorri-verticale { to { transform: translateY(calc(-50% - 7px)); } }
+.carosello-foto { position: relative; flex: none; margin: 0; aspect-ratio: 3 / 4; border-radius: 16px; overflow: hidden; background: linear-gradient(160deg, #26231f, #7a6440); }
+.carosello-foto img { display: block; width: 100%; height: 100%; object-fit: cover; filter: saturate(0.9); transition: transform 0.9s ease, filter 0.9s ease; }
+.carosello-foto:hover img { transform: scale(1.05); filter: saturate(1.05); }
+.carosello-foto figcaption {
+  position: absolute; inset: auto 0 0; padding: 1.8rem 0.9rem 0.75rem;
+  font: italic 500 1.1rem/1.1 var(--display); color: #fff;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.58));
+}
+.foto-assente img { visibility: hidden; }
+
+.carosello-orizzontale { height: auto; margin: 0.5rem -1.1rem 2.2rem; }
+.carosello-orizzontale .carosello-finestra {
+  border-radius: 0;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
+}
+.carosello-orizzontale .carosello-traccia { flex-direction: row; width: max-content; animation: scorri-orizzontale 90s linear infinite; }
+.carosello-orizzontale .carosello-foto { width: 150px; }
+@keyframes scorri-orizzontale { to { transform: translateX(calc(-50% - 7px)); } }
+@media (min-width: 1100px) { .home-centro .carosello-orizzontale { display: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .carosello-traccia { animation: none !important; }
+  .carosello-orizzontale .carosello-finestra { overflow-x: auto; }
+}
+
+/* ---------- Il tuo armadio ---------- */
+.armadio-vuoto {
+  display: grid; justify-items: center; gap: 0.4rem; text-align: center;
+  padding: 3rem 1.5rem; background: var(--carta); border: 1px dashed var(--oro); border-radius: 24px;
+}
+.armadio-vuoto h2 { font-size: 2rem; }
+.armadio-vuoto p { color: var(--grigio); max-width: 26rem; margin-bottom: 1rem; }
+.armadio-vuoto-icona { display: grid; place-items: center; width: 88px; height: 88px; margin-bottom: 0.5rem; border-radius: 50%; background: var(--oro-chiaro); color: var(--oro); }
+.riepilogo { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin: 0 0 0.75rem; }
+.riepilogo div { background: var(--nero); color: var(--avorio); border-radius: 18px; padding: 1rem 1.1rem; }
+.riepilogo dt { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--oro-vivo); }
+.riepilogo dd { margin: 0.35rem 0 0; font-family: var(--display); font-size: clamp(1.8rem, 6vw, 2.5rem); font-weight: 600; line-height: 1; }
+.riepilogo small { font-family: var(--sans); font-size: 0.85rem; opacity: 0.7; }
+.armadio-griglia { list-style: none; margin: 1.25rem 0 0; padding: 0; display: grid; gap: 1rem; }
+.capo-carta { display: grid; grid-template-columns: 84px 1fr; gap: 1rem 1.2rem; padding: 1.1rem; background: var(--carta); border: 1px solid var(--linea); border-radius: 20px; box-shadow: var(--ombra); }
+.capo-monogramma { display: grid; place-items: center; width: 84px; height: 106px; border-radius: 14px; background: linear-gradient(160deg, #1d1b18, #5a4a2e); color: var(--oro-vivo); font: italic 500 2.4rem var(--display); }
+.capo-info { min-width: 0; }
+.capo-info .sopratitolo { margin-bottom: 0.2rem; }
+.capo-info h2 { font-size: 1.9rem; margin: 0 0 0.1rem; }
+.capo-info p { margin: 0 0 0.35rem; }
+.capo-dettagli { display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem 0.9rem; }
+.capo-impatto { display: inline-flex; align-items: center; gap: 0.3rem; color: var(--verde); font-size: 0.9rem; font-weight: 600; }
+.capo-azioni { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 1.25rem; padding-top: 0.9rem; border-top: 1px solid var(--linea); }
+@media (min-width: 720px) {
+  .capo-carta { grid-template-columns: 100px 1fr auto; align-items: center; padding: 1.25rem 1.4rem; }
+  .capo-monogramma { width: 100px; height: 126px; }
+  .capo-azioni { grid-column: auto; flex-direction: column; align-items: flex-end; padding-top: 0; border-top: 0; }
+}
+
+/* ---------- Pulsanti e moduli ---------- */
+.pulsante {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+  min-height: 48px; padding: 0 1.3rem; border-radius: 999px; border: 1px solid var(--inchiostro);
+  background: var(--inchiostro); color: var(--avorio); font: 600 0.97rem var(--sans); text-decoration: none; cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.2s, background 0.2s;
+}
+.pulsante:hover:not(:disabled) { box-shadow: 0 8px 22px rgba(20, 19, 17, 0.18); transform: translateY(-1px); }
+.pulsante svg { color: var(--oro-vivo); }
 .pulsante:disabled { opacity: 0.5; cursor: not-allowed; }
+.pulsante-grande { min-height: 56px; padding: 0 1.7rem; font-size: 1.04rem; }
 .pulsante-secondario { background: transparent; color: var(--inchiostro); }
+.pulsante-secondario svg { color: var(--oro); }
 .pulsante-pericolo { background: var(--rosso); border-color: var(--rosso); }
 .link { background: none; border: 0; padding: 0; color: var(--inchiostro); text-decoration: underline; text-decoration-color: var(--oro); text-underline-offset: 3px; cursor: pointer; font: inherit; }
 .link:disabled { opacity: 0.4; cursor: default; }
+.link-pericolo { color: var(--rosso); text-decoration-color: var(--rosso); }
 
 .modulo { display: grid; gap: 0.85rem; margin: 0.75rem 0; }
-.modulo label { display: grid; gap: 0.3rem; font-weight: 600; font-size: 0.9rem; }
+.modulo label { display: grid; gap: 0.3rem; font-weight: 600; font-size: 0.92rem; }
 .modulo small { font-weight: 400; color: var(--grigio); }
 .modulo input, .modulo select, .modulo textarea {
-  width: 100%; min-height: 46px; padding: 0.6rem 0.8rem; border: 1px solid var(--linea); border-radius: 10px;
+  width: 100%; min-height: 48px; padding: 0.6rem 0.85rem; border: 1px solid var(--linea); border-radius: 12px;
   background: #fff; font: 16px var(--sans); color: var(--inchiostro);
 }
 .modulo textarea { min-height: auto; resize: vertical; }
@@ -6623,8 +7885,8 @@ code { font-size: 0.85em; background: var(--oro-chiaro); padding: 0.1em 0.35em; 
 .intestazione-sezione { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 1rem; margin-bottom: 1rem; }
 .azioni { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
 
-/* Avvisi e stati */
-.avviso { border-radius: 10px; padding: 0.8rem 1rem; margin: 0.75rem 0; }
+/* ---------- Avvisi e stati ---------- */
+.avviso { border-radius: 12px; padding: 0.85rem 1rem; margin: 0.75rem 0; }
 .avviso p, .avviso ul { margin: 0.25rem 0 0; }
 .avviso-errore { background: var(--rosso-chiaro); color: var(--rosso); }
 .avviso-ok { background: var(--verde-chiaro); color: var(--verde); }
@@ -6633,14 +7895,16 @@ code { font-size: 0.85em; background: var(--oro-chiaro); padding: 0.1em 0.35em; 
 @keyframes gira { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .rotella { animation: none; } }
 
-/* Certificato */
-.certificato-testata { padding: 0.5rem 0 1rem; }
-.certificato-testata h1 { font-size: clamp(2rem, 8vw, 3rem); margin-bottom: 0.2rem; }
-.certificato { background: var(--carta); border: 1px solid var(--linea); border-radius: var(--raggio); padding: 1.25rem; }
-.esito { display: flex; gap: 0.9rem; align-items: flex-start; border-radius: var(--raggio); padding: 1rem; }
-.esito h1, .esito h2 { font-size: 1.25rem; margin-bottom: 0.25rem; }
+/* ---------- Certificato ---------- */
+.certificato-testata { padding: 0.25rem 0 1.1rem; }
+.certificato-testata h1 { font-size: clamp(2.6rem, 9vw, 3.8rem); line-height: 1; margin-bottom: 0.3rem; }
+.certificato { background: var(--carta); border: 1px solid var(--linea); border-radius: 22px; padding: 1.5rem 1.35rem; box-shadow: var(--ombra); }
+@media (min-width: 720px) { .certificato { padding: 2rem 2.2rem; } }
+.certificato h3 { font-size: 1.5rem; }
+.esito { display: flex; gap: 0.9rem; align-items: flex-start; border-radius: var(--raggio); padding: 1rem 1.1rem; }
+.esito h1, .esito h2 { font-size: 1.5rem; margin-bottom: 0.25rem; }
 .esito p { margin: 0 0 0.3rem; }
-.esito-icona { flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-size: 1.2rem; font-weight: 700; color: #fff; }
+.esito-icona { flex: none; width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; font-size: 1.2rem; font-weight: 700; color: #fff; }
 .esito-ok { background: var(--verde-chiaro); }
 .esito-ok .esito-icona { background: var(--verde); }
 .esito-attesa { background: var(--ambra-chiaro); }
@@ -6648,9 +7912,13 @@ code { font-size: 0.85em; background: var(--oro-chiaro); padding: 0.1em 0.35em; 
 .esito-ko { background: var(--rosso-chiaro); }
 .esito-ko .esito-icona { background: var(--rosso); }
 .esito-nfc { font-size: 0.85rem; font-weight: 600; color: var(--verde); }
+.azioni-armadio { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1.1rem; margin: 1.1rem 0 0.25rem; }
+.azioni-armadio .nota { margin: 0; flex: 1 1 14rem; }
+.nel-armadio { display: inline-flex; align-items: center; gap: 0.4rem; font-weight: 700; color: var(--verde); }
+.nel-armadio svg { color: var(--verde); }
 
-.scheda-dati { display: grid; grid-template-columns: minmax(8rem, auto) 1fr; gap: 0.4rem 1rem; margin: 0; }
-.scheda-dati dt { color: var(--grigio); font-size: 0.88rem; }
+.scheda-dati { display: grid; grid-template-columns: minmax(8rem, auto) 1fr; gap: 0.45rem 1rem; margin: 0; }
+.scheda-dati dt { color: var(--grigio); font-size: 0.9rem; }
 .scheda-dati dd { margin: 0; }
 
 .linea-tempo { list-style: none; margin: 0; padding: 0 0 0 1.1rem; border-left: 2px solid var(--oro-chiaro); }
@@ -6670,26 +7938,26 @@ code { font-size: 0.85em; background: var(--oro-chiaro); padding: 0.1em 0.35em; 
 .ancoraggio-fallito .puntino, .ancoraggio-non_ancorato .puntino { background: var(--rosso); }
 
 .indicatori { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin: 0.5rem 0; }
-.indicatore { background: var(--verde-chiaro); border-radius: 12px; padding: 0.9rem; display: grid; }
-.indicatore .valore { font-family: var(--serif); font-size: 2rem; font-weight: 600; color: var(--verde); line-height: 1.1; }
+.indicatore { background: var(--verde-chiaro); border-radius: 14px; padding: 1rem; display: grid; }
+.indicatore .valore { font-family: var(--display); font-size: 2.4rem; font-weight: 600; color: var(--verde); line-height: 1.05; }
 .indicatore .unita { font-weight: 600; }
 .indicatore .intervallo { font-size: 0.78rem; color: var(--grigio); }
 .fonti summary, .apribile summary { cursor: pointer; font-weight: 600; margin: 0.5rem 0; }
 .fonti ul { padding-left: 1.1rem; font-size: 0.85rem; color: var(--grigio); }
 
-/* Elenchi della gestione */
+/* ---------- Area gestionale ---------- */
 .elenco-capi { list-style: none; padding: 0; margin: 0.5rem 0; display: grid; gap: 0.5rem; }
-.riga-capo { display: grid; gap: 0.2rem; background: var(--carta); border: 1px solid var(--linea); border-radius: 12px; padding: 0.8rem 1rem; text-decoration: none; }
+.riga-capo { display: grid; gap: 0.2rem; background: var(--carta); border: 1px solid var(--linea); border-radius: 14px; padding: 0.85rem 1rem; text-decoration: none; }
 a.riga-capo:hover { border-color: var(--oro); }
 .paginazione { display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; font-size: 0.9rem; }
 .zona-rischio { border-color: var(--rosso-chiaro); }
 
-/* Scansione */
+/* ---------- Scansione ---------- */
 .scansione { text-align: center; }
 .cornice-video { position: relative; width: 100%; max-width: 420px; aspect-ratio: 1; margin: 1rem auto; border-radius: var(--raggio); overflow: hidden; background: #000; }
 .cornice-video video { width: 100%; height: 100%; object-fit: cover; }
 
-/* Etichetta stampabile */
+/* ---------- Etichetta stampabile ---------- */
 .etichetta-stampa { display: flex; gap: 1.25rem; align-items: center; background: #fff; border: 1px dashed var(--grigio); border-radius: 12px; padding: 1rem; max-width: 520px; margin: 1rem 0; }
 .etichetta-stampa img { width: 170px; height: 170px; flex: none; }
 .etichetta-stampa .codice { font-family: ui-monospace, Menlo, monospace; font-size: 1.1rem; letter-spacing: 0.05em; }
@@ -6698,6 +7966,100 @@ a.riga-capo:hover { border-color: var(--oro); }
   .testata, .piede, .non-stampare { display: none !important; }
   body, .contenuto { background: #fff; padding: 0; }
   .etichetta-stampa { border: 1px solid #000; }
+}
+```
+
+## `frontend/src/utils/archivio.js`
+
+```javascript
+/*
+ * "Il tuo armadio" e "Storico delle verifiche" del consumatore.
+ * Restano SOLO nel browser di questo dispositivo (localStorage): nessun account,
+ * nessun dato inviato al server — coerente con il requisito U (accesso pubblico
+ * senza registrazione) e con la minimizzazione dei dati personali (GDPR).
+ */
+import { useSyncExternalStore } from "react";
+
+const CHIAVI = { armadio: "regen.armadio", storico: "regen.storico" };
+const MAX_STORICO = 30;
+const ascoltatori = new Set();
+const cache = {};
+
+function leggi(nome) {
+  if (!(nome in cache)) {
+    try {
+      const valore = JSON.parse(localStorage.getItem(CHIAVI[nome]) ?? "[]");
+      cache[nome] = Array.isArray(valore) ? valore : [];
+    } catch {
+      cache[nome] = [];
+    }
+  }
+  return cache[nome];
+}
+
+function scrivi(nome, elenco) {
+  cache[nome] = elenco;
+  try {
+    localStorage.setItem(CHIAVI[nome], JSON.stringify(elenco));
+  } catch {
+    /* navigazione privata o spazio pieno: resta in memoria per questa sessione */
+  }
+  ascoltatori.forEach((f) => f());
+}
+
+// Aggiornamento anche se l'armadio cambia in un'altra scheda del browser
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (e) => {
+    const nome = Object.keys(CHIAVI).find((k) => CHIAVI[k] === e.key);
+    if (nome) {
+      delete cache[nome];
+      ascoltatori.forEach((f) => f());
+    }
+  });
+}
+
+const iscriviti = (f) => {
+  ascoltatori.add(f);
+  return () => ascoltatori.delete(f);
+};
+
+// Riassunto del capo dai dati del certificato (solo ciò che serve a riconoscerlo)
+export function riassuntoCapo(dati) {
+  const { capo, certificatoAutenticita: cert, impattoAmbientale: imp } = dati;
+  return {
+    tagId: capo.tagId,
+    brand: capo.brand,
+    codiceModello: capo.codiceModello,
+    categoria: capo.categoria ?? null,
+    materialePrincipale: capo.materialePrincipale ?? null,
+    annoProduzione: capo.annoProduzione ?? null,
+    esito: cert?.integrita?.stato ?? "non_registrato",
+    co2Kg: imp?.disponibile ? imp.co2RisparmiataKg : null,
+    acquaL: imp?.disponibile ? imp.acquaPreservataLitri : null,
+  };
+}
+
+// --- Storico delle verifiche ---
+export function registraVerifica(voce) {
+  const precedente = leggi("storico").find((v) => v.tagId === voce.tagId);
+  const nuova = { ...precedente, ...voce, volte: (precedente?.volte ?? 0) + 1, data: new Date().toISOString() };
+  scrivi("storico", [nuova, ...leggi("storico").filter((v) => v.tagId !== voce.tagId)].slice(0, MAX_STORICO));
+}
+export const svuotaStorico = () => scrivi("storico", []);
+export const useStorico = () => useSyncExternalStore(iscriviti, () => leggi("storico"), () => []);
+
+// --- Armadio ---
+export function aggiungiAllArmadio(capo) {
+  const altri = leggi("armadio").filter((c) => c.tagId !== capo.tagId);
+  scrivi("armadio", [{ ...capo, aggiuntoIl: new Date().toISOString() }, ...altri]);
+}
+export const rimuoviDallArmadio = (tagId) => scrivi("armadio", leggi("armadio").filter((c) => c.tagId !== tagId));
+export const useArmadio = () => useSyncExternalStore(iscriviti, () => leggi("armadio"), () => []);
+// Dopo una nuova verifica aggiorna esito e impatto del capo, se è nell'armadio
+export function aggiornaNellArmadio(capo) {
+  const elenco = leggi("armadio");
+  if (!elenco.some((c) => c.tagId === capo.tagId)) return;
+  scrivi("armadio", elenco.map((c) => (c.tagId === capo.tagId ? { ...c, ...capo, aggiuntoIl: c.aggiuntoIl } : c)));
 }
 ```
 
@@ -6748,6 +8110,32 @@ export function interpretaCodice(testo) {
   if (/^[A-Za-z0-9_-]{3,64}$/.test(valore)) return { tipo: "tag", tagId: valore };
   return null;
 }
+
+// "3 minuti fa", "ieri", "2 settimane fa"
+export function tempoFa(d) {
+  if (!d) return "";
+  const secondi = (new Date(d).getTime() - Date.now()) / 1000;
+  const rtf = new Intl.RelativeTimeFormat("it", { numeric: "auto" });
+  const unita = [["year", 31536000], ["month", 2592000], ["week", 604800], ["day", 86400], ["hour", 3600], ["minute", 60]];
+  for (const [nome, durata] of unita) {
+    if (Math.abs(secondi) >= durata) return rtf.format(Math.round(secondi / durata), nome);
+  }
+  return "adesso";
+}
+
+// Iniziali del brand per il monogramma delle schede dell'armadio
+export const iniziali = (testo = "") =>
+  testo.trim().split(/\s+/).slice(0, 2).map((p) => p.charAt(0).toUpperCase()).join("") || "?";
+
+// Esito di una verifica → etichetta breve e colore
+export const ESITO_BREVE = {
+  verificato: { testo: "Autentico", classe: "ok" },
+  in_attesa: { testo: "In registrazione", classe: "attesa" },
+  incompleto: { testo: "Storico parziale", classe: "attesa" },
+  manomesso: { testo: "Dati alterati", classe: "ko" },
+  non_registrato: { testo: "Non registrato", classe: "ko" },
+  non_trovato: { testo: "Non trovato", classe: "ko" },
+};
 ```
 
 ## `frontend/src/utils/nfc.js`
@@ -6780,20 +8168,48 @@ export async function leggiTagNfc({ signal } = {}) {
 ## `frontend/vite.config.js`
 
 ```javascript
-import { defineConfig } from "vite";
+import { fileURLToPath } from "node:url";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 
-// In sviluppo le chiamate a /api vengono inoltrate al backend (porta 5000):
-// frontend e API risultano sullo stesso indirizzo, come in produzione.
-export default defineConfig({
-  plugins: [react()],
-  server: {
-    port: 5173,
-    host: true, // raggiungibile anche dal telefono sulla stessa rete Wi-Fi
-    proxy: { "/api": "http://localhost:5000" },
-  },
-  build: { outDir: "dist", sourcemap: false },
+// In sviluppo le chiamate a /api vengono inoltrate al backend: frontend e API
+// risultano sullo stesso indirizzo, come in produzione. La porta del backend
+// viene letta da backend/.env (PORT), così si cambia in un solo punto.
+export default defineConfig(({ mode }) => {
+  const cartellaBackend = fileURLToPath(new URL("../backend", import.meta.url));
+  const { PORT } = loadEnv(mode, cartellaBackend, "PORT");
+  return {
+    plugins: [react()],
+    server: {
+      port: 5173,
+      host: true, // raggiungibile anche dal telefono sulla stessa rete Wi-Fi
+      proxy: { "/api": `http://localhost:${PORT || 5001}` },
+    },
+    build: { outDir: "dist", sourcemap: false },
+  };
 });
+```
+
+## `package.json`
+
+```json
+{
+  "name": "regen-luxury",
+  "private": true,
+  "description": "Comandi rapidi dalla cartella principale: inoltrano a backend/ e frontend/ (così funzionano da qualsiasi terminale di VS Code)",
+  "scripts": {
+    "dev": "npm --prefix backend run dev",
+    "web": "npm --prefix frontend run dev",
+    "imposta-db": "npm --prefix backend run imposta-db",
+    "copia-db": "npm --prefix backend run copia-db",
+    "crea-admin": "npm --prefix backend run crea-admin --",
+    "passaggi": "npm --prefix backend run passaggi --",
+    "misura-tempi": "npm --prefix backend run misura-tempi --",
+    "migra": "npm --prefix backend run migra",
+    "test": "npm --prefix backend test",
+    "installa": "npm --prefix backend install && npm --prefix frontend install"
+  }
+}
 ```
 
 ## `README.md`
@@ -6816,31 +8232,36 @@ Stato del progetto, decisioni e prompt: [`docs/Handoff.md`](docs/Handoff.md).
 
 - **Node.js 20 o 22 LTS** e npm (`node -v`) — https://nodejs.org
 - **Git** (`git --version`)
-- Account **MongoDB Atlas** (progetto "tesis", Cluster0) con il tuo IP in *Network Access*
+- Account **MongoDB Atlas** con un cluster gratuito (M0), un *database user* e il tuo IP in *Network Access*
 - Solo per il modulo AI: **Python 3.11+**
 
 ## Avvio in locale (Mac)
 
+I comandi si lanciano dalla cartella principale `regen-luxury` (dove si aprono i terminali di VS Code):
+inoltrano da soli a `backend/` e `frontend/`.
+
 ```bash
-# 1) Backend  (terminale 1)
-cd backend
-npm install
-cp .env.example .env         # inserisci MONGO_URI (Atlas) e JWT_SECRET
-npm run crea-admin           # crea il tuo account: la password viene mostrata una volta
-npm run migra                # registra sulla blockchain i capi creati con la versione precedente
-npm run dev                  # API su http://localhost:5000
+# 0) Una volta sola
+npm run installa             # dipendenze di backend e web app
+npm run imposta-db           # chiede la password del database user di Atlas (nascosta), la salva nel .env,
+                             # genera JWT_SECRET se manca e prova subito la connessione
+npm run crea-admin           # crea il tuo account (la password la scegli tu, nascosta); se l'email esiste la reimposta
+
+# 1) Backend  (terminale 1, resta aperto)
+npm run dev                  # "MongoDB Atlas: connesso" + API su http://localhost:5001 (la 5000 su macOS è di AirPlay)
 
 # 2) Web app  (terminale 2)
-cd frontend
-npm install
-npm run dev                  # http://localhost:5173  (le chiamate /api vanno al backend)
+npm run web                  # http://localhost:5173  (le chiamate /api vanno al backend)
 
 # 3) Test  (terminale 3, con il backend avviato)
-cd backend
-npm run passaggi             # Passaggi 1-8
+npm run passaggi             # Passaggi 1-8: email e password del TUO account, non quella del database
 npm run misura-tempi         # requisito P (< 2 s)
 npm test                     # 38 test automatici (database in memoria)
 ```
+
+Le password sono due e diverse: quella del *database user* di Atlas (sta solo nel `.env`, si imposta con
+`npm run imposta-db`) e quella del tuo account della piattaforma (login nella web app e `npm run passaggi`,
+si imposta con `npm run crea-admin`). Solo per dati creati con la versione precedente del backend: `npm run migra`.
 
 Blockchain: di default `BLOCKCHAIN_MODE=mock` (registro simulato, gratuito). Per lo smart contract reale:
 `cd contracts && npm install && npm run chain` (terminale dedicato) → `npm run deploy` → nel `backend/.env`
@@ -6895,22 +8316,18 @@ services:
         value: "22"
       - key: TRUST_PROXY
         value: "1"
-      - key: MONGO_URI
+      - key: MONGO_URI # stringa di connessione Atlas: si inserisce nel pannello di Render, mai nel repository
         sync: false
       - key: JWT_SECRET
         generateValue: true
-      - key: PUBLIC_BASE_URL
-        sync: false
+      # Registro blockchain simulato salvato nel database (il disco di Render si cancella a ogni riavvio).
+      # Dopo il deploy del contratto su Polygon Amoy: BLOCKCHAIN_MODE=polygon e, nel pannello di Render,
+      # POLYGON_RPC_URL, CONTRACT_ADDRESS, PLATFORM_PRIVATE_KEY, CHAIN_NAME (vedi docs/deploy.md).
       - key: BLOCKCHAIN_MODE
-        value: polygon
-      - key: POLYGON_RPC_URL
-        value: https://rpc-amoy.polygon.technology
-      - key: CHAIN_NAME
-        value: polygon-amoy
-      - key: CONTRACT_ADDRESS
-        sync: false
-      - key: PLATFORM_PRIVATE_KEY
-        sync: false
+        value: mock
+      - key: MOCK_LEDGER_STORE
+        value: mongo
+      # PUBLIC_BASE_URL non serve: il backend usa l'indirizzo assegnato da Render (RENDER_EXTERNAL_URL).
 ```
 
 ## `tools/esporta-codice.mjs`

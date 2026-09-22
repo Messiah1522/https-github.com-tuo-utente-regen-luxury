@@ -6,7 +6,7 @@
  *   npm run passaggi                    # tutti i passaggi
  *   npm run passaggi -- --passaggio 7   # solo il passaggio 7
  * Credenziali: chieste all'avvio, oppure variabili PASSAGGI_EMAIL e PASSAGGI_PASSWORD.
- * Altre opzioni: --base http://localhost:5000/api  --tag NFC-001
+ * Altre opzioni: --base http://localhost:5001/api  --tag NFC-001
  */
 import "dotenv/config";
 import { colore, chiedi, chiamata, attendi } from "./_cli.js";
@@ -15,7 +15,7 @@ const argomento = (nome, predefinito) => {
   const i = process.argv.indexOf(`--${nome}`);
   return i > -1 ? process.argv[i + 1] : predefinito;
 };
-const BASE = argomento("base", `http://localhost:${process.env.PORT ?? 5000}/api`);
+const BASE = argomento("base", `http://localhost:${process.env.PORT ?? 5001}/api`);
 const TAG = argomento("tag", "NFC-001");
 const SOLO = Number(argomento("passaggio", 0));
 

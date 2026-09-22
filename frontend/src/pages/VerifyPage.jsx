@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { api } from "../services/api.js";
 import Certificato from "../components/Certificato.jsx";
 import { Caricamento, Errore } from "../components/Stato.jsx";
+import { aggiornaNellArmadio, registraVerifica, riassuntoCapo } from "../utils/archivio.js";
 
 export default function VerifyPage() {
   const { tagId } = useParams();
@@ -12,8 +13,18 @@ export default function VerifyPage() {
     let attivo = true;
     setStato({ caricamento: true });
     api(`/verify/${encodeURIComponent(tagId)}`)
-      .then((dati) => attivo && setStato({ dati }))
-      .catch((errore) => attivo && setStato({ errore }));
+      .then((dati) => {
+        if (!attivo) return;
+        setStato({ dati });
+        const riassunto = riassuntoCapo(dati);
+        registraVerifica(riassunto); // storico sul dispositivo
+        aggiornaNellArmadio(riassunto);
+      })
+      .catch((errore) => {
+        if (!attivo) return;
+        setStato({ errore });
+        if (errore.status === 404) registraVerifica({ tagId, brand: null, codiceModello: null, esito: "non_trovato" });
+      });
     return () => {
       attivo = false;
     };

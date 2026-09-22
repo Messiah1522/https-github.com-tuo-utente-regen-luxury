@@ -3,6 +3,16 @@ import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../services/api.js";
 import Certificato from "../components/Certificato.jsx";
 import { Caricamento, Errore } from "../components/Stato.jsx";
+import { aggiornaNellArmadio, registraVerifica, riassuntoCapo } from "../utils/archivio.js";
+
+// Una sola richiesta per link: il link del chip vale una volta (anti-replay) e in
+// sviluppo React esegue gli effetti due volte, quindi la richiesta viene condivisa.
+const richieste = new Map();
+function verificaLink(e, c) {
+  const chiave = `${e}|${c}`;
+  if (!richieste.has(chiave)) richieste.set(chiave, api(`/verify/sun?e=${encodeURIComponent(e)}&c=${encodeURIComponent(c)}`));
+  return richieste.get(chiave);
+}
 
 // Pagina aperta dal chip NTAG 424 DNA: /s?e=<dati cifrati>&c=<codice di autenticazione>
 export default function SunPage() {
@@ -12,9 +22,19 @@ export default function SunPage() {
   const [stato, setStato] = useState({ caricamento: true });
 
   useEffect(() => {
-    api(`/verify/sun?e=${encodeURIComponent(e)}&c=${encodeURIComponent(c)}`)
-      .then((dati) => setStato({ dati }))
-      .catch((errore) => setStato({ errore }));
+    let attivo = true;
+    verificaLink(e, c)
+      .then((dati) => {
+        if (!attivo) return;
+        setStato({ dati });
+        const riassunto = riassuntoCapo(dati);
+        registraVerifica(riassunto);
+        aggiornaNellArmadio(riassunto);
+      })
+      .catch((errore) => attivo && setStato({ errore }));
+    return () => {
+      attivo = false;
+    };
   }, [e, c]);
 
   if (stato.caricamento) return <Caricamento testo="Verifica del chip in corso…" />;

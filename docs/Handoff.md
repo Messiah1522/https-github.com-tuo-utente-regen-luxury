@@ -28,7 +28,7 @@ Tesi in italiano, LaTeX con template PoliBa/DEI.
 | Livello | Tecnologia |
 |---|---|
 | Backend | Node.js (ES modules), Express 4, Mongoose 8, JWT + bcrypt, zod, helmet, express-rate-limit |
-| Database | MongoDB Atlas — progetto "tesis", Cluster0, Frankfurt, database `regen_luxury` |
+| Database | MongoDB Atlas — nuovo account (settembre 2026): cluster gratuito "tesis", database `regen_luxury`, partito vuoto (i dati di prova si ricreano con `npm run passaggi`) |
 | Blockchain | Polygon PoS (Amoy per i test), smart contract `RegenLuxuryPassport` (ERC-721 + AccessControl + ERC2771Context, OpenZeppelin 5), ethers.js 6; registro simulato per lo sviluppo |
 | Frontend | React 18 + Vite 6 + React Router 6, mobile-first, lettore QR (`qr-scanner`), Web NFC su Android |
 | NFC | NTAG 424 DNA, messaggi SUN (AES-128 + AES-CMAC, anti-replay con contatore) |
@@ -43,16 +43,16 @@ Tesi in italiano, LaTeX con template PoliBa/DEI.
 
 | Componente | Stato | Dettaglio |
 |---|---|---|
-| Backend (Cap. 4.1) | ✅ | Base = codice originale del 1° settembre (campi italiani, porta 5000) + login e ruoli, validazione, limite di richieste, nuovi endpoint, integrità on-chain, QR, NFC. **38 test automatici superati**, Passaggi 1–8 superati |
-| Test Passaggi 7–8 | ✅ in sviluppo · ⏭️ da rifare su Atlas | `npm run passaggi` (Node, funziona su Mac) e `test-powershell/passaggi.ps1` (Windows) |
+| Backend (Cap. 4.1) | ✅ | Base = codice originale del 1° settembre (campi italiani; porta passata da 5000 a 5001 perché su macOS la 5000 è occupata da AirPlay) + login e ruoli, validazione, limite di richieste, nuovi endpoint, integrità on-chain, QR, NFC. **38 test automatici superati**, Passaggi 1–8 superati |
+| Test Passaggi 7–8 | ✅ in sviluppo · ✅ sul Mac con Atlas (22/09: 8/8, verifica media 37,9 ms) | `npm run passaggi` (Node, funziona su Mac) e `test-powershell/passaggi.ps1` (Windows) |
 | Smart contract (Cap. 4.2) | ✅ su chain locale · ⏭️ Amoy | Compilato, deployato su Hardhat, backend in modalità `polygon` 8/8; manomissione rilevata anche on-chain |
 | Gas e costi (Cap. 6) | ✅ | 403.338 gas per il ciclo di vita tipico di un capo → da 0,1 a 6 centesimi (`docs/costi/gas-e-costi.md`) |
-| Frontend (punti 17–20) | ✅ | Verifica pubblica, pagina NFC, scansione QR, area gestionale completa; provato nel browser su schermo da telefono |
+| Frontend (punti 17–20) | ✅ | Verifica pubblica, pagina NFC, scansione QR, area gestionale completa; **grafica rinnovata (22/09)**: testata con titolo centrale, home con caroselli di foto, font Cormorant Garamond; per il consumatore **Il tuo armadio** e **Storico delle verifiche**, salvati solo sul dispositivo (niente account, GDPR); provato su desktop e telefono |
 | NFC NTAG 424 DNA (punto 16) | ✅ software · ⏭️ chip fisico | Verifica SUN corretta sul vettore ufficiale NXP AN12196 |
 | Modulo AI (Cap. 4.3) | 🟡 | Dataset scelto (TextileNet), notebook Colab e servizio pronti e testati; **addestramento da eseguire su Colab** |
 | LCA (punto 23) | 🟡 | Jeans verificato (Levi's 2015); t-shirt da ricontrollare; altre categorie "non disponibile" |
-| Validazione (Cap. 5) | 🟡 | Tabella FURPS+ con esiti di sviluppo (`docs/validazione/tabella-furps.md`); manca la colonna "Mac con Atlas" |
-| Deploy pubblico (punto 27) | ⏭️ | `render.yaml` + guida pronti; serve il tuo account Render |
+| Validazione (Cap. 5) | 🟡 | Tabella FURPS+ (`docs/validazione/tabella-furps.md`): esiti di sviluppo + colonna "Mac con Atlas" compilata il 22/09; mancano prove nel browser del Mac, chip fisico, Amoy |
+| Deploy pubblico (punto 27) | 🟡 in corso | `render.yaml` (registro simulato su database, indirizzo automatico) + guida passo passo in `docs/deploy.md`; servono GitHub, Atlas `0.0.0.0/0` e account Render |
 
 ### 2.2 Tesi
 
@@ -80,7 +80,7 @@ Tesi in italiano, LaTeX con template PoliBa/DEI.
 | **Solo impronte on-chain** (keccak256 di JSON canonico), nomi mai sulla blockchain | GDPR; l'id casuale della voce fa da "sale" |
 | **Controllo di integrità**: impronte ricalcolate dal database vs impronte on-chain | Rende rilevabile qualsiasi modifica o cancellazione nel database ("manomesso") |
 | Scritture **asincrone e in coda per capo** | Requisito P + ordine garantito (registrazione prima degli eventi) |
-| **Registro simulato su file** (non nel database) | Deve restare indipendente dal database, come la blockchain vera |
+| **Registro simulato su file** (non nel database); opzione `MOCK_LEDGER_STORE=mongo` per la demo online | Il file resta indipendente dal database, come la blockchain vera; su Render il disco si cancella, quindi online (e sul Mac, per restare allineati) il registro simulato vive in una collezione separata, con controllo di versione. Limite dichiarato: nella versione finale si usa Polygon Amoy |
 | Contratto v2 con `dataHashOf`, `updateDataHash`, `recordByTag` | Serve per confrontare i dati attuali e leggere tutto con una chiamata gratuita |
 | **Custodia della piattaforma** (paga il gas, nessun wallet per gli utenti) | RC-5 + usabilità; EIP-2771 come evoluzione — da confermare col relatore (`docs/decisioni/`) |
 | **Impatto LCA** = produzione del capo nuovo × 0,6 (Farrant et al., 2010); nessun numero senza fonte | Sostituisce i vecchi coefficienti fissi (15 kg, 2.700 L × interventi) non difendibili |
@@ -97,7 +97,7 @@ Tesi in italiano, LaTeX con template PoliBa/DEI.
 regen-luxury/
 ├── backend/           server.js, app.js, config/, models/, controllers/, routes/, middleware/,
 │                      validators/, services/ (blockchain, anchor, integrity, impact, sun, qr, hash),
-│                      data/coefficienti-lca.json, scripts/ (passaggi, misura-tempi, crea-admin, migra),
+│                      data/coefficienti-lca.json, scripts/ (imposta-db, crea-admin, passaggi, misura-tempi, migra),
 │                      test/ (38 test node:test), test-powershell/passaggi.ps1
 ├── frontend/          src/pages (Home, Verify, Sun, Scan, Login, Dashboard, NewItem, ItemDetail,
 │                      Label, Users, Account), src/components, src/services/api.js, src/styles
@@ -116,18 +116,12 @@ Endpoint: vedi la tabella nel `README.md` della radice.
 ## 5. Come avviare tutto sul Mac
 
 ```bash
-# Backend (terminale 1)
-cd ~/Desktop/regen-luxury/backend
-npm install
-cp .env.example .env        # MONGO_URI = stringa Atlas; JWT_SECRET = stringa casuale (comando nel file)
-npm run crea-admin          # crea il tuo account amministratore
-npm run migra               # registra il capo Gucci NFC-001 e gli altri dati della versione precedente
-npm run dev                 # "MongoDB Atlas: connesso" + "Server in ascolto sulla porta 5000"
-
-# Web app (terminale 2)
-cd ~/Desktop/regen-luxury/frontend
-npm install
-npm run dev                 # apri http://localhost:5173
+# Tutto dalla cartella principale ~/Desktop/regen-luxury (i comandi inoltrano a backend/ e frontend/)
+npm run installa            # dipendenze (una volta)
+npm run imposta-db          # password del database user di Atlas (nascosta) → .env + prova di connessione
+npm run crea-admin          # il tuo account: password scelta da te (nascosta); se esiste la reimposta
+npm run dev                 # terminale 1: "MongoDB Atlas: connesso" + "Server in ascolto sulla porta 5001"
+npm run web                 # terminale 2: apri http://localhost:5173
 
 # Smart contract reale in locale (facoltativo, terminale 3)
 cd ~/Desktop/regen-luxury/contracts
@@ -150,7 +144,8 @@ npm run deploy              # copia CONTRACT_ADDRESS nel backend/.env con BLOCKC
 | Passaggi 1–8 (blockchain simulata) | `npm run passaggi` | 8/8 — dati della v1 migrati con `npm run migra` → "verificato" |
 | Passaggi 1–8 (smart contract su chain locale) | stesso, con `BLOCKCHAIN_MODE=polygon` | 8/8; manomissione di un evento → "manomesso" |
 | Passaggi in PowerShell | `test-powershell/passaggi.ps1` | 8/8 |
-| Tempi di risposta | `npm run misura-tempi` | media 5,7 ms, massimo 79 ms (database locale) — **da rifare con Atlas** |
+| Tempi di risposta | `npm run misura-tempi` | media 5,7 ms, massimo 79 ms (database locale) |
+| **Mac con Atlas** (22/09) | `npm run passaggi`, `npm run misura-tempi` | Passaggi **8/8**; verifica media **37,9 ms**, 95° percentile 41,9 ms, max 68 ms (blockchain simulata) |
 | Gas | `npm run misura-gas` | registrazione 106.974–124.074, evento 56.086–73.186, passaggio 55.503, aggiornamento 33.720 |
 | NFC | test `sun.test.js` | vettore NXP AN12196 (UID 04DE5F1EACC040, contatore 61) + RFC 4493 |
 | Web app | Chromium 390×844 | 11 schermate in `docs/validazione/schermate/` |
@@ -162,16 +157,17 @@ npm run deploy              # copia CONTRACT_ADDRESS nel backend/.env con BLOCKC
 
 ### 7.1 Solo tu (account, password, hardware, relatore)
 
-- [ ] **Node.js** sul Mac: `node -v` (se manca, versione LTS da nodejs.org)
-- [ ] **Atlas → Network Access → Add current IP address**
-- [ ] `backend/.env` con la **stringa di connessione Atlas** (contiene la password: non incollarla in chat)
+- [x] **Node.js** sul Mac (v24)
+- [x] **Atlas** (nuovo account): cluster, database user e IP in Network Access
+- [x] `npm run imposta-db`: password del database user nel `.env` (connessione riuscita)
 - [ ] **GitHub**: autorizzare VS Code per la pubblicazione del repository privato
-- [ ] `npm run crea-admin`, `npm run migra`, poi `npm run passaggi` e `npm run misura-tempi` → compila la colonna "Mac con Atlas" di `docs/validazione/tabella-furps.md`
+- [x] `npm run crea-admin`, `npm run passaggi` (8/8) e `npm run misura-tempi` → colonna "Mac con Atlas" di `docs/validazione/tabella-furps.md` compilata
+- [ ] Web app sul Mac: `npm run installa` (una volta) e `npm run web` → provare certificato, login e gestione nel browser
 - [ ] **Relatore**: le 3 domande in `docs/decisioni/4.2-custodia-e-commissioni.md`
 - [ ] **Amoy**: `npm run crea-wallet` → POL di prova dal faucet (login e captcha) → `npm run deploy`
 - [ ] **Colab**: eseguire `ai-module/notebooks/addestramento_colab.ipynb` e copiare il modello in `ai-module/models/`
 - [ ] **Chip fisico**: acquistare NTAG 424 DNA, configurare SDM (`docs/nfc/configurazione-tag.md`), associarlo a un capo
-- [ ] **Render**: account e Blueprint (`docs/deploy.md`); poi ristampare i QR con il dominio pubblico
+- [ ] **Render**: GitHub → Atlas `0.0.0.0/0` → Blueprint con `MONGO_URI` (`npm run copia-db`) — guida in `docs/deploy.md`
 
 ### 7.2 Sviluppo (anche con un assistente AI)
 
@@ -203,7 +199,7 @@ Per iniziare: riassumi in 5 righe lo stato del progetto e proponi il prossimo pa
 
 ```text
 Devo avviare la v2 del backend sul Mac con il mio database Atlas. Ho già: [Node installato sì/no], [IP aggiunto in Atlas sì/no].
-Guidami un comando alla volta: npm install, creazione del .env (senza che io ti incolli la password), npm run crea-admin, npm run migra, npm run dev, npm run passaggi, npm run misura-tempi.
+Guidami un comando alla volta dalla cartella principale: npm run installa, npm run imposta-db (la password la scrivo solo nel terminale, mai in chat), npm run crea-admin, npm run dev, npm run passaggi, npm run misura-tempi.
 Dopo ogni comando aspetta l'output. Alla fine aiutami a compilare la colonna "Esito sul Mac con Atlas" della tabella FURPS+.
 ```
 
@@ -304,6 +300,11 @@ Simula la commissione. Una domanda alla volta sui punti più esposti: The Merge 
 - Un tag eliminato dal database resta registrato on-chain e non può essere riusato (comportamento voluto).
 - OpenZeppelin 5 richiede la compilazione con EVM **cancun**.
 - Credenziali (Atlas, JWT, chiave del wallet) solo nei file `.env`, esclusi da Git e dall'esportazione del codice.
+- **Due password diverse**: quella del *database user* di Atlas (solo nel `.env`, con `npm run imposta-db`) e quella del proprio account della piattaforma (login e `npm run passaggi`, con `npm run crea-admin`). Nei terminali le password compaiono come asterischi: l'output si può incollare in chat.
+- Dopo aver cambiato la password su Atlas serve **Update User** e circa un minuto prima che sia valida ("bad auth" nel frattempo).
+- Su macOS la porta **5000** è occupata da AirPlay Receiver: il backend usa la **5001** (la web app la legge da `backend/.env`).
+- I terminali di VS Code si aprono nella cartella principale: i comandi `npm run …` funzionano da lì (inoltrano a `backend/` e `frontend/`).
+- Se si ricrea il database (es. nuovo account Atlas) va rinominato anche `backend/data/mock-ledger.json`, altrimenti il tag NFC-001 risulta "già registrato sulla blockchain" (409).
 
 ---
 

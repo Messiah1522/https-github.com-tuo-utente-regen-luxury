@@ -15,31 +15,36 @@ Stato del progetto, decisioni e prompt: [`docs/Handoff.md`](docs/Handoff.md).
 
 - **Node.js 20 o 22 LTS** e npm (`node -v`) — https://nodejs.org
 - **Git** (`git --version`)
-- Account **MongoDB Atlas** (progetto "tesis", Cluster0) con il tuo IP in *Network Access*
+- Account **MongoDB Atlas** con un cluster gratuito (M0), un *database user* e il tuo IP in *Network Access*
 - Solo per il modulo AI: **Python 3.11+**
 
 ## Avvio in locale (Mac)
 
+I comandi si lanciano dalla cartella principale `regen-luxury` (dove si aprono i terminali di VS Code):
+inoltrano da soli a `backend/` e `frontend/`.
+
 ```bash
-# 1) Backend  (terminale 1)
-cd backend
-npm install
-cp .env.example .env         # inserisci MONGO_URI (Atlas) e JWT_SECRET
-npm run crea-admin           # crea il tuo account: la password viene mostrata una volta
-npm run migra                # registra sulla blockchain i capi creati con la versione precedente
-npm run dev                  # API su http://localhost:5000
+# 0) Una volta sola
+npm run installa             # dipendenze di backend e web app
+npm run imposta-db           # chiede la password del database user di Atlas (nascosta), la salva nel .env,
+                             # genera JWT_SECRET se manca e prova subito la connessione
+npm run crea-admin           # crea il tuo account (la password la scegli tu, nascosta); se l'email esiste la reimposta
+
+# 1) Backend  (terminale 1, resta aperto)
+npm run dev                  # "MongoDB Atlas: connesso" + API su http://localhost:5001 (la 5000 su macOS è di AirPlay)
 
 # 2) Web app  (terminale 2)
-cd frontend
-npm install
-npm run dev                  # http://localhost:5173  (le chiamate /api vanno al backend)
+npm run web                  # http://localhost:5173  (le chiamate /api vanno al backend)
 
 # 3) Test  (terminale 3, con il backend avviato)
-cd backend
-npm run passaggi             # Passaggi 1-8
+npm run passaggi             # Passaggi 1-8: email e password del TUO account, non quella del database
 npm run misura-tempi         # requisito P (< 2 s)
 npm test                     # 38 test automatici (database in memoria)
 ```
+
+Le password sono due e diverse: quella del *database user* di Atlas (sta solo nel `.env`, si imposta con
+`npm run imposta-db`) e quella del tuo account della piattaforma (login nella web app e `npm run passaggi`,
+si imposta con `npm run crea-admin`). Solo per dati creati con la versione precedente del backend: `npm run migra`.
 
 Blockchain: di default `BLOCKCHAIN_MODE=mock` (registro simulato, gratuito). Per lo smart contract reale:
 `cd contracts && npm install && npm run chain` (terminale dedicato) → `npm run deploy` → nel `backend/.env`

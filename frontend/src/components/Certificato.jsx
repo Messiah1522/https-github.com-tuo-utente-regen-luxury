@@ -1,4 +1,7 @@
+import { Link } from "react-router-dom";
 import Ancoraggio from "./Ancoraggio.jsx";
+import { IconaGruccia } from "./Icone.jsx";
+import { aggiungiAllArmadio, riassuntoCapo, rimuoviDallArmadio, useArmadio } from "../utils/archivio.js";
 import { TIPI_EVENTO, data, hashBreve, numero, maiuscola } from "../utils/formato.js";
 
 const ESITI = {
@@ -26,6 +29,36 @@ function Esito({ certificato, nfc }) {
           </p>
         )}
       </div>
+    </div>
+  );
+}
+
+// "Aggiungi al mio armadio": solo per capi autentici; l'elenco resta sul dispositivo
+function AzioniArmadio({ dati }) {
+  const armadio = useArmadio();
+  const { tagId } = dati.capo;
+  if (ESITI[dati.certificatoAutenticita.integrita.stato]?.classe === "ko") return null;
+  const presente = armadio.some((c) => c.tagId === tagId);
+  return (
+    <div className="azioni-armadio">
+      {presente ? (
+        <>
+          <span className="nel-armadio">
+            <IconaGruccia dimensione={20} /> Nel tuo armadio
+          </span>
+          <Link to="/armadio">Apri l’armadio</Link>
+          <button type="button" className="link" onClick={() => rimuoviDallArmadio(tagId)}>
+            Rimuovi
+          </button>
+        </>
+      ) : (
+        <>
+          <button type="button" className="pulsante" onClick={() => aggiungiAllArmadio(riassuntoCapo(dati))}>
+            <IconaGruccia dimensione={20} /> Aggiungi al mio armadio
+          </button>
+          <span className="nota">Hai acquistato questo capo? Conservane il passaporto su questo dispositivo.</span>
+        </>
+      )}
     </div>
   );
 }
@@ -88,6 +121,7 @@ export default function Certificato({ dati }) {
       </header>
 
       <Esito certificato={cert} nfc={nfc} />
+      <AzioniArmadio dati={dati} />
 
       <section className="sezione">
         <h3>Scheda del capo</h3>

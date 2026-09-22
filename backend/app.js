@@ -26,7 +26,8 @@ export function creaApp() {
       contentSecurityPolicy: {
         directives: {
           "worker-src": ["'self'", "blob:"],
-          "img-src": ["'self'", "data:", "blob:"],
+          // foto decorative della home (Unsplash, licenza Unsplash)
+          "img-src": ["'self'", "data:", "blob:", "https://images.unsplash.com"],
           "upgrade-insecure-requests": process.env.NODE_ENV === "production" ? [] : null,
         },
       },

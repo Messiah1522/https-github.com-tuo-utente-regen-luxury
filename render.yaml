@@ -16,19 +16,15 @@ services:
         value: "22"
       - key: TRUST_PROXY
         value: "1"
-      - key: MONGO_URI
+      - key: MONGO_URI # stringa di connessione Atlas: si inserisce nel pannello di Render, mai nel repository
         sync: false
       - key: JWT_SECRET
         generateValue: true
-      - key: PUBLIC_BASE_URL
-        sync: false
+      # Registro blockchain simulato salvato nel database (il disco di Render si cancella a ogni riavvio).
+      # Dopo il deploy del contratto su Polygon Amoy: BLOCKCHAIN_MODE=polygon e, nel pannello di Render,
+      # POLYGON_RPC_URL, CONTRACT_ADDRESS, PLATFORM_PRIVATE_KEY, CHAIN_NAME (vedi docs/deploy.md).
       - key: BLOCKCHAIN_MODE
-        value: polygon
-      - key: POLYGON_RPC_URL
-        value: https://rpc-amoy.polygon.technology
-      - key: CHAIN_NAME
-        value: polygon-amoy
-      - key: CONTRACT_ADDRESS
-        sync: false
-      - key: PLATFORM_PRIVATE_KEY
-        sync: false
+        value: mock
+      - key: MOCK_LEDGER_STORE
+        value: mongo
+      # PUBLIC_BASE_URL non serve: il backend usa l'indirizzo assegnato da Render (RENDER_EXTERNAL_URL).

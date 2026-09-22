@@ -42,3 +42,29 @@ export function interpretaCodice(testo) {
   if (/^[A-Za-z0-9_-]{3,64}$/.test(valore)) return { tipo: "tag", tagId: valore };
   return null;
 }
+
+// "3 minuti fa", "ieri", "2 settimane fa"
+export function tempoFa(d) {
+  if (!d) return "";
+  const secondi = (new Date(d).getTime() - Date.now()) / 1000;
+  const rtf = new Intl.RelativeTimeFormat("it", { numeric: "auto" });
+  const unita = [["year", 31536000], ["month", 2592000], ["week", 604800], ["day", 86400], ["hour", 3600], ["minute", 60]];
+  for (const [nome, durata] of unita) {
+    if (Math.abs(secondi) >= durata) return rtf.format(Math.round(secondi / durata), nome);
+  }
+  return "adesso";
+}
+
+// Iniziali del brand per il monogramma delle schede dell'armadio
+export const iniziali = (testo = "") =>
+  testo.trim().split(/\s+/).slice(0, 2).map((p) => p.charAt(0).toUpperCase()).join("") || "?";
+
+// Esito di una verifica → etichetta breve e colore
+export const ESITO_BREVE = {
+  verificato: { testo: "Autentico", classe: "ok" },
+  in_attesa: { testo: "In registrazione", classe: "attesa" },
+  incompleto: { testo: "Storico parziale", classe: "attesa" },
+  manomesso: { testo: "Dati alterati", classe: "ko" },
+  non_registrato: { testo: "Non registrato", classe: "ko" },
+  non_trovato: { testo: "Non trovato", classe: "ko" },
+};

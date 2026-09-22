@@ -10,7 +10,7 @@
 param(
     [Parameter(Mandatory = $true)][string]$Email,
     [int]$Passaggio = 0,
-    [string]$BaseUrl = "http://localhost:5000/api",
+    [string]$BaseUrl = "http://localhost:5001/api",
     [string]$TagId = "NFC-001",
     [string]$Password = ""   # se vuoto viene chiesta in modo nascosto
 )

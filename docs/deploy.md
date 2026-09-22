@@ -3,39 +3,49 @@
 Serve un indirizzo **HTTPS pubblico** perché il telefono, leggendo il tag o il QR, apra la pagina di verifica
 (e perché la fotocamera del browser funzioni fuori da `localhost`).
 
-**Soluzione proposta:** un solo servizio su **Render** (piano gratuito, regione Frankfurt): il backend espone le
-API e serve la web app React compilata. Il file `render.yaml` nella radice del repository configura tutto.
+**Soluzione:** un solo servizio su **Render** (piano gratuito, regione Frankfurt): il backend espone le API e
+serve la web app React compilata. Il file `render.yaml` nella radice del repository configura tutto.
 Controlla sul sito di Render le condizioni attuali del piano gratuito prima della demo.
 
-## Prerequisiti
+## Come funziona la versione online
 
-1. Repository su GitHub (punto 3) con `package-lock.json` inclusi.
-2. MongoDB Atlas: in **Network Access** il piano gratuito di Render non ha un IP fisso, quindi serve
-   `0.0.0.0/0` (accesso da qualsiasi IP, protetto da utente e password del database). È un compromesso
-   accettabile per un prototipo: dichiaralo come limite.
-3. Blockchain: sul piano gratuito il disco è temporaneo, quindi il registro **simulato** si perderebbe a ogni
-   riavvio. Per la versione pubblica usa **Polygon Amoy**: `npm run crea-wallet`, POL di prova dal faucet,
-   `npm run deploy` (cartella `contracts/`).
+- **Database:** lo stesso cluster Atlas usato sul Mac → sul sito online si vedono gli stessi capi.
+- **Blockchain:** per ora registro **simulato** salvato nel database (`MOCK_LEDGER_STORE=mongo`), perché su
+  Render il disco si cancella a ogni riavvio. Anche il Mac usa lo stesso registro su database, così Mac e sito
+  online restano allineati (al primo avvio il vecchio file `backend/data/mock-ledger.json` viene importato).
+  Limite da dichiarare: il registro simulato su database è meno indipendente del file; nella versione finale si
+  passa a **Polygon Amoy** (vedi in fondo).
+- **Indirizzo pubblico:** il backend usa da solo quello assegnato da Render (`RENDER_EXTERNAL_URL`) per QR e link.
 
-## Passi su Render
+## Passi (una volta sola)
 
-1. Accedi a https://render.com con GitHub → **New → Blueprint** → scegli il repository `regen-luxury`.
-2. Render legge `render.yaml` e chiede i valori segreti:
-   - `MONGO_URI` → stringa di connessione Atlas (database `regen_luxury`)
-   - `PUBLIC_BASE_URL` → l'indirizzo che Render assegna, es. `https://regen-luxury.onrender.com`
-   - `CONTRACT_ADDRESS` e `PLATFORM_PRIVATE_KEY` → dal deploy su Amoy (la chiave solo qui, mai nel repository)
-   - `JWT_SECRET` viene generato automaticamente
-3. Dopo il primo deploy: apri `https://<indirizzo>/api/health` → `{"stato":"online",...}`.
-4. Crea l'account amministratore dal tuo computer, puntando al database di produzione:
-   `cd backend && npm run crea-admin` (con `MONGO_URI` di Atlas nel `.env` locale).
-5. Esegui `npm run migra` una volta, così i capi già presenti vengono registrati sul contratto di Amoy.
-6. Aggiorna `PUBLIC_BASE_URL` e **ristampa le etichette QR**; riscrivi i tag NFC con il nuovo dominio.
+1. **Codice su GitHub** — in VS Code: pannello *Controllo del codice sorgente* → **Pubblica in GitHub** →
+   **repository privato**. Per gli aggiornamenti successivi: *Sincronizza modifiche*.
+2. **Atlas** — *Security → Network Access → Add IP Address → Allow access from anywhere* (`0.0.0.0/0`) →
+   **Confirm**. Il piano gratuito di Render non ha un IP fisso; l'accesso resta protetto da utente e password del
+   database. Compromesso accettabile per un prototipo: dichiaralo come limite.
+3. **Render** — https://render.com → *Get Started* → accedi con **GitHub** → autorizza l'accesso al repository
+   `regen-luxury` → **New → Blueprint** → scegli il repository. Render legge `render.yaml` e chiede un solo valore:
+   - `MONGO_URI` → nel terminale `npm run copia-db` (la copia negli appunti senza mostrarla) → **Cmd+V**.
+   Poi **Apply / Deploy Blueprint**. `JWT_SECRET` viene generato automaticamente.
+4. Aspetta la fine della build (3–5 minuti, log in *Events/Logs*). Il sito è all'indirizzo mostrato in alto,
+   es. `https://regen-luxury.onrender.com`. Controllo: `https://<indirizzo>/api/health` → `{"stato":"online",…}`.
+5. Gli account sono gli stessi del Mac (stesso database): accedi con la tua email e password.
+
+**Aggiornare il sito:** fai commit e *Sincronizza modifiche* in VS Code; Render ripubblica da solo a ogni push.
 
 ## Da sapere per la demo
 
-- Il servizio gratuito **si sospende dopo circa 15 minuti** senza visite: la prima richiesta può richiedere
-  quasi un minuto. Apri la pagina qualche minuto prima della discussione. Le misure del requisito P
-  (< 2 s) vanno fatte con il servizio già attivo.
-- In alternativa, per la sola demo in aula: backend e web app sul Mac e telefono sulla stessa rete Wi-Fi
-  (`npm run dev` nel frontend mostra l'indirizzo di rete), ma senza HTTPS la fotocamera del telefono non si
-  apre nel browser; il tag NFC e i link funzionano comunque.
+- Il servizio gratuito **si sospende dopo circa 15 minuti** senza visite: la prima apertura può richiedere
+  quasi un minuto. Aprilo qualche minuto prima di mostrarlo. Le misure del requisito P (< 2 s) vanno fatte con
+  il servizio già attivo.
+- Le foto della home arrivano da Unsplash: servono Internet e la CSP del backend le ammette (`images.unsplash.com`).
+- "Il tuo armadio" e lo storico restano nel browser di chi visita il sito: ognuno vede i propri.
+
+## Più avanti: blockchain reale su Polygon Amoy
+
+1. `cd contracts && npm run crea-wallet` → POL di prova dal faucet → `npm run deploy`.
+2. Su Render (*Environment*): `BLOCKCHAIN_MODE=polygon`, `POLYGON_RPC_URL=https://rpc-amoy.polygon.technology`,
+   `CHAIN_NAME=polygon-amoy`, `CONTRACT_ADDRESS`, `PLATFORM_PRIVATE_KEY` (la chiave solo lì, mai nel repository).
+3. `npm run migra` una volta, così i capi già presenti vengono registrati sul contratto.
+4. Ristampa le etichette QR e riscrivi i tag NFC con il dominio definitivo.

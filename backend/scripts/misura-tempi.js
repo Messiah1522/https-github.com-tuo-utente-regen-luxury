@@ -11,7 +11,7 @@ const argomento = (nome, predefinito) => {
   const i = process.argv.indexOf(`--${nome}`);
   return i > -1 ? process.argv[i + 1] : predefinito;
 };
-const BASE = argomento("base", `http://localhost:${process.env.PORT ?? 5000}/api`);
+const BASE = argomento("base", `http://localhost:${process.env.PORT ?? 5001}/api`);
 const TAG = argomento("tag", "NFC-001");
 const N = Number(argomento("n", 50));
 

@@ -15,6 +15,7 @@ export async function avviaAmbiente(env = {}) {
     NODE_ENV: "test",
     JWT_SECRET: "segreto-di-test",
     BLOCKCHAIN_MODE: "mock",
+    MOCK_LEDGER_STORE: "file",
     MOCK_LEDGER_FILE: path.join(os.tmpdir(), `ledger-${id}.json`),
     MOCK_CHAIN_LATENCY_MS: "5",
     RATE_LIMIT_VERIFY_PER_MIN: "10000",
