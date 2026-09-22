@@ -1,6 +1,6 @@
 # Codice completo del progetto
 
-Esportato il 22/09/2026, 10:46:25 da `rl` — 120 file.
+Esportato il 22/09/2026, 11:54:49 da `rl` — 120 file.
 
 ## Indice
 
@@ -8306,7 +8306,8 @@ services:
     runtime: node
     plan: free
     region: frankfurt
-    buildCommand: cd frontend && npm ci && npm run build && cd ../backend && npm ci --omit=dev
+    # --include=dev: con NODE_ENV=production npm salterebbe Vite (dipendenza di sviluppo) e la build fallirebbe
+    buildCommand: cd frontend && npm ci --include=dev && npm run build && cd ../backend && npm ci --omit=dev
     startCommand: cd backend && node server.js
     healthCheckPath: /api/health
     envVars:
